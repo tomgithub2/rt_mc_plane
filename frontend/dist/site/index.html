@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="auto">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MC 开服面板 · 一个页面管好所有 Minecraft 服务器</title>
+<meta name="description" content="开源、免登录游戏账号、纯浏览器操作的 Minecraft 多服务器管理面板。7 种核心一键下载、实时仪表盘、离线导入建筑、备份回滚、三级权限。" />
+<link rel="stylesheet" href="/css/tokens.css" />
+<link rel="stylesheet" href="/css/theme-mono.css" />
+<link rel="stylesheet" href="/site/site.css" />
+</head>
+<body>
+
+<!-- ============================ 顶栏 ============================ -->
+<header class="nav" id="nav">
+  <div class="wrap nav-in">
+    <a class="brand" href="#top">
+      <span class="logo">MC</span>
+      <span class="brand-txt"><b>MC 开服面板</b><i>Server Panel</i></span>
+    </a>
+    <nav class="nav-links" id="nav-links">
+      <a href="#features">功能</a>
+      <a href="#cores">支持核心</a>
+      <a href="#start">快速开始</a>
+      <a href="#design">设计</a>
+      <a href="#faq">常见问题</a>
+    </nav>
+    <div class="nav-act">
+      <button class="icon-btn" id="theme-btn" title="切换主题（跟随系统 / 暗色 / 亮色）" aria-label="切换主题">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
+          <path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M18.4 5.6L17 7M7 17l-1.4 1.4"/>
+          <circle cx="12" cy="12" r="3.5"/>
+        </svg>
+      </button>
+      <a class="btn primary" href="#start">开始使用</a>
+      <button class="icon-btn menu-btn" id="menu-btn" aria-label="菜单">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+          <path d="M4 7h16M4 12h16M4 17h16"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- ============================ Hero ============================ -->
+<section class="hero" id="top">
+  <div class="wrap hero-in">
+    <div class="hero-copy">
+      <span class="pill"><span class="dot-live"></span>开源 · 自托管 · 纯浏览器操作</span>
+      <h1>一个页面，<br />管好所有<br /><em>Minecraft 服务器</em></h1>
+      <p class="lede">
+        不用装客户端，不用游戏账号，不用在聊天窗里贴命令。
+        7 种服务端核心一键下载、秒级刷新的实时仪表盘、离线导入建筑、
+        一键回滚的备份体系，以及按实例隔离的三级权限。
+      </p>
+      <div class="hero-act">
+        <a class="btn primary lg" href="#start">两行命令跑起来</a>
+        <a class="btn lg" href="#features">看看有什么</a>
+      </div>
+      <dl class="facts">
+        <div><dt>126</dt><dd>后端接口</dd></div>
+        <div><dt>7</dt><dd>服务端核心</dd></div>
+        <div><dt>2</dt><dd>建筑导入引擎</dd></div>
+        <div><dt>161</dt><dd>自动化验收项</dd></div>
+      </dl>
+    </div>
+
+    <!-- 面板界面示意（纯 CSS/SVG 复刻真实布局，不是宣传图） -->
+    <div class="mock" aria-label="面板界面示意">
+      <div class="mock-bar">
+        <i class="m-dot"></i><i class="m-dot"></i><i class="m-dot"></i>
+        <span class="mock-url">127.0.0.1:8100/#/dashboard</span>
+        <span class="mock-live"><span class="dot-live"></span>实时</span>
+      </div>
+      <div class="mock-body">
+        <aside class="mock-side">
+          <div class="m-brand"><span class="m-logo">MC</span></div>
+          <div class="m-group">概览</div>
+          <div class="m-item on">仪表盘</div>
+          <div class="m-group">服务器</div>
+          <div class="m-item">实例列表</div>
+          <div class="m-item">新建实例</div>
+          <div class="m-group">面板</div>
+          <div class="m-item">设置</div>
+          <div class="m-item">账号管理</div>
+        </aside>
+        <div class="mock-main">
+          <div class="m-head"><b>仪表盘</b><span class="m-badge">5 个实例 · 2 个运行中</span></div>
+          <div class="mock-stats">
+            <div class="m-stat"><span>CPU 占用</span><b class="num" data-count="18.4">0</b><i>32 核</i></div>
+            <div class="m-stat"><span>内存</span><b class="num" data-count="49">0</b><i>15 / 31 GB</i></div>
+            <div class="m-stat"><span>磁盘剩余</span><b class="num" data-count="412">0</b><i>GB</i></div>
+            <div class="m-stat"><span>在线玩家</span><b class="num" data-count="17">0</b><i>2 个实例</i></div>
+          </div>
+          <div class="mock-cards">
+            <div class="m-card">
+              <div class="m-card-top"><b>survival</b><span class="m-state on">运行中</span></div>
+              <div class="m-metrics">
+                <div><span>CPU</span><b>4.62%</b></div><div><span>内存</span><b>2048MB</b></div>
+                <div><span>玩家</span><b>12</b></div><div><span>TPS</span><b>20.0</b></div>
+              </div>
+              <svg class="spark" viewBox="0 0 200 34" preserveAspectRatio="none" aria-hidden="true">
+                <path class="spark-line" d="M0,26 L14,22 L28,24 L42,15 L56,18 L70,9 L84,13 L98,7 L112,12 L126,8 L140,16 L154,11 L168,14 L182,9 L200,12" />
+              </svg>
+              <div class="m-acts"><span class="m-btn">重启</span><span class="m-btn danger">停止</span></div>
+            </div>
+            <div class="m-card">
+              <div class="m-card-top"><b>creative</b><span class="m-state">已停止</span></div>
+              <div class="m-metrics">
+                <div><span>CPU</span><b>—</b></div><div><span>内存</span><b>—</b></div>
+                <div><span>玩家</span><b>—</b></div><div><span>TPS</span><b>不可用</b></div>
+              </div>
+              <svg class="spark ghost" viewBox="0 0 200 34" preserveAspectRatio="none" aria-hidden="true">
+                <path class="spark-line" d="M0,17 L200,17" />
+              </svg>
+              <div class="m-acts"><span class="m-btn primary">启动</span></div>
+            </div>
+          </div>
+          <div class="m-progress">
+            <div class="m-prow"><span>正在下载 paper-1.21.4-232.jar</span><b class="num" data-count="100" data-suffix="%">0%</b></div>
+            <div class="bar"><i class="bar-fill"></i></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ 功能 ============================ -->
+<section class="sec" id="features">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="kicker">Features</span>
+      <h2>该有的都有，细节不糊弄</h2>
+      <p>下面每一条都是仓库里真实实现并被自动化验收覆盖的能力，不是"规划中"。</p>
+    </div>
+    <div class="cards">
+      <article class="fcard">
+        <span class="fi">01</span>
+        <h3>实时仪表盘</h3>
+        <p>WebSocket 每秒推送一帧实例状态，卡片<strong>原地更新</strong>而不是整页重绘 —— 拖动排序、置顶、sparkline 历史都不会被打断。断线自动退避重连，并在标题旁如实显示「实时 / 重连中 / 轮询」。</p>
+      </article>
+      <article class="fcard">
+        <span class="fi">02</span>
+        <h3>7 种核心一键下载</h3>
+        <p>原版、Paper、Purpur、Fabric、Quilt、Forge、NeoForge。官方源优先、镜像自动降级、sha1/sha256 校验，慢源支持<strong>断点续传</strong>，下载进度带速率实时可见。</p>
+      </article>
+      <article class="fcard">
+        <span class="fi">03</span>
+        <h3>离线导入建筑</h3>
+        <p>支持 <code>.schem</code> / <code>.schematic</code> / <code>.nbt</code> / <code>.litematic</code> / <code>.zip</code>。两套引擎：插件+RCON（实例运行中即可用）与<strong>离线写 Anvil 区块</strong>（无插件依赖）。导入前给完整预检报告，导入后可 sha256 一键回滚。</p>
+      </article>
+      <article class="fcard">
+        <span class="fi">04</span>
+        <h3>备份 / 回滚 / 定时</h3>
+        <p>手动与定时备份、tar.gz 归档、恢复前自动再备份一次（可反复横跳）、保留份数上限。计划任务支持 cron 表达式，崩溃自动重启带指数退避。</p>
+      </article>
+      <article class="fcard">
+        <span class="fi">05</span>
+        <h3>三级权限 + 逐实例隔离</h3>
+        <p>超级管理员 / 管理员 / 普通用户 / 只读。普通用户<strong>只看得到自己的实例</strong>，含配额限制与归属过滤。后端是唯一边界，前端隐藏只是体验。</p>
+      </article>
+      <article class="fcard">
+        <span class="fi">06</span>
+        <h3>失败一定说得清</h3>
+        <p>每个页面都有错误边界：接口失败、权限不足、渲染异常都会给出<strong>人话 + 下一步</strong>，附带简化视图兜底，保证"永远看得到实例"。还有浏览器自检页 <code>/doctor.html</code>。</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ 支持核心 ============================ -->
+<section class="sec alt" id="cores">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="kicker">Cores</span>
+      <h2>支持的核心</h2>
+      <p>下载源实测可用性与速度如实标注 —— 慢就是慢，不假装都快。</p>
+    </div>
+    <div class="table-wrap">
+      <table class="tbl">
+        <thead>
+          <tr><th>核心</th><th>定位</th><th>安装方式</th><th>解析速度<sup>实测</sup></th></tr>
+        </thead>
+        <tbody>
+          <tr><td><b>Vanilla</b></td><td>Mojang 官方原版，最纯净</td><td>直接运行</td><td class="ok">~2s</td></tr>
+          <tr><td><b>Paper</b></td><td>最常用的高性能插件服</td><td>直接运行</td><td class="ok">~1s</td></tr>
+          <tr><td><b>Purpur</b></td><td>Paper 分支，可调项极多</td><td>直接运行</td><td class="ok">~5s</td></tr>
+          <tr><td><b>Fabric</b></td><td>轻量模组加载器，跟进快</td><td>直接运行</td><td class="ok">~3s</td></tr>
+          <tr><td><b>Forge</b></td><td>老牌模组加载器</td><td>需运行安装器</td><td class="ok">~6s</td></tr>
+          <tr><td><b>NeoForge</b></td><td>Forge 现代分支</td><td>需运行安装器</td><td class="ok">~7s</td></tr>
+          <tr><td><b>Quilt</b></td><td>Fabric 分支，生态较少</td><td>需运行安装器</td><td class="slow">~3s（jar 本体慢）</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">
+      Quilt 的元数据服务（<code>meta.quiltmc.org</code>）与制品仓库实测响应很慢，
+      面板已改为读取 maven 自己的元数据并支持续传 —— <strong>能下完，但可能需要几分钟</strong>。
+      追求省心建议用 Fabric。
+    </p>
+  </div>
+</section>
+
+<!-- ============================ 快速开始 ============================ -->
+<section class="sec" id="start">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="kicker">Quick start</span>
+      <h2>两行命令</h2>
+      <p>只需要 Python 3.10+ 与 Java（面板会自己找）。数据库是 SQLite，没有外部依赖。</p>
+    </div>
+    <div class="start-grid">
+      <div class="steps">
+        <div class="step"><span class="sn">1</span>
+          <div><h4>装依赖</h4><pre><code>python -m pip install --target backend/.deps -r backend/requirements.txt</code></pre></div>
+        </div>
+        <div class="step"><span class="sn">2</span>
+          <div><h4>启动面板</h4><pre><code>cd backend &amp;&amp; python run.py</code></pre>
+            <p class="small">首次启动会创建默认超管账号，<strong>初始口令只在终端打印一次</strong>。</p></div>
+        </div>
+        <div class="step"><span class="sn">3</span>
+          <div><h4>打开浏览器</h4><pre><code>http://127.0.0.1:8100</code></pre>
+            <p class="small">登录后进「新建实例」向导：选核心 → 选版本 → 内存/端口 → Java → 创建即自动下载。</p></div>
+        </div>
+        <div class="step"><span class="sn">4</span>
+          <div><h4>忘了口令？</h4><pre><code>python -m tools.reset_password</code></pre>
+            <p class="small">在服务器本地直接改库，不需要邮箱或找回流程。</p></div>
+        </div>
+      </div>
+      <aside class="aside">
+        <h4>跑之前请确认</h4>
+        <ul class="ticks">
+          <li>默认监听 <code>0.0.0.0</code>，会<strong>暴露在局域网</strong>；对外提供前请改掉默认口令并限制访问来源。</li>
+          <li>面板进程需要能读写实例目录、启动 Java 子进程。</li>
+          <li>实例默认端口从 <code>25565</code> 起，记得放行防火墙。</li>
+          <li>建筑导入的离线引擎要求<strong>先停止实例</strong>（写入 region 文件需要独占）。</li>
+        </ul>
+        <div class="aside-box">
+          <b>面板做了什么自检？</b>
+          <p>打开 <code>/doctor.html</code> 会逐项检查端口、首页、静态资源 Content-Type、登录与关键接口；
+            命令行则跑 <code>python tools/panel_doctor.py</code>，结果写入体检报告。</p>
+        </div>
+      </aside>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ 设计 ============================ -->
+<section class="sec alt" id="design">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="kicker">Design</span>
+      <h2>设计系统</h2>
+      <p>黑白灰单色基底、等比例大圆角、多层阴影加 1px 内描边 —— 令牌集中在一层，换肤不影响组件代码。</p>
+    </div>
+    <div class="design-grid">
+      <div class="dbox">
+        <h4>色板</h4>
+        <div class="swatches">
+          <div class="sw" style="--c:#0a0a0a"><span>#0a0a0a</span><i>页面底</i></div>
+          <div class="sw" style="--c:#141414"><span>#141414</span><i>卡片</i></div>
+          <div class="sw" style="--c:#262626"><span>#262626</span><i>描边</i></div>
+          <div class="sw" style="--c:#525252"><span>#525252</span><i>次要</i></div>
+          <div class="sw" style="--c:#a3a3a3"><span>#a3a3a3</span><i>成功 / 弱文字</i></div>
+          <div class="sw" style="--c:#f5f5f5"><span>#f5f5f5</span><i>主文字 / 品牌色</i></div>
+        </div>
+        <p class="small">单色系统的代价：成功态不占用绿色，靠灰度与文案表达；状态色只留给真正的异常。</p>
+      </div>
+      <div class="dbox">
+        <h4>圆角与阴影</h4>
+        <div class="radii">
+          <div class="rr" style="border-radius:8px">8</div>
+          <div class="rr" style="border-radius:12px">12</div>
+          <div class="rr" style="border-radius:16px">16</div>
+          <div class="rr" style="border-radius:20px">20</div>
+          <div class="rr" style="border-radius:24px">24</div>
+          <div class="rr" style="border-radius:28px">28</div>
+        </div>
+        <div class="shadow-demo">
+          <div class="sd s1">shadow-1</div>
+          <div class="sd s2">shadow-2</div>
+          <div class="sd s3">shadow-3</div>
+        </div>
+      </div>
+      <div class="dbox">
+        <h4>动效</h4>
+        <ul class="kv2">
+          <li><span>时长</span><b>150 / 200 / 300 ms</b></li>
+          <li><span>曲线</span><b>cubic-bezier(.4,0,.2,1)</b></li>
+          <li><span>数值更新</span><b>上浮 2px + 淡入 220ms</b></li>
+          <li><span>数字</span><b>tabular-nums 等宽</b></li>
+        </ul>
+        <p class="small">
+          只动 <code>transform</code> / <code>opacity</code>（合成层属性，不触发布局）；
+          不比对 SVG 的 <code>points</code> 做过渡 —— 那是几何属性，会反而更卡。
+          系统开了"减少动态效果"就全部关闭。
+        </p>
+      </div>
+      <div class="dbox">
+        <h4>视图密度</h4>
+        <p class="small">同一份数据提供多种呈现，按"信息密度"和"关注对象"两个维度铺开：</p>
+        <ul class="kv2">
+          <li><span>实例列表</span><b>卡片 / 紧凑 / 表格 / 分组</b></li>
+          <li><span>仪表盘</span><b>卡片 / 紧凑 / 趋势</b></li>
+          <li><span>实例子页</span><b>控制台 · 文件 · 配置 · 玩家 · 建筑 · 备份 · 计划任务 · 设置</b></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ FAQ ============================ -->
+<section class="sec" id="faq">
+  <div class="wrap narrow">
+    <div class="sec-head">
+      <span class="kicker">FAQ</span>
+      <h2>常见问题</h2>
+    </div>
+    <div class="faq">
+      <details open>
+        <summary>需要正版账号或者机器人进服吗？</summary>
+        <p>都不需要。面板直接管理服务端<strong>进程</strong>与<strong>文件</strong>，控制台走 stdin/stdout。
+          建筑导入的离线引擎直接写 Anvil region 文件，连 RCON 和插件都不用装。</p>
+      </details>
+      <details>
+        <summary>支持哪些 Minecraft 版本？</summary>
+        <p>跟随各核心官方发布的版本清单，面板不写死版本号。Java 版本不匹配时会给出提示，
+          也可以让面板从 Adoptium 下载 17 / 21 / 25。</p>
+      </details>
+      <details>
+        <summary>为什么 TPS 有时显示"不可用"？</summary>
+        <p>取不到真实值时就显示不可用，<strong>不编数字</strong>。原版服务端日志不输出 TPS，
+          需要开 RCON 或装能输出 TPS 的插件；面板只呈现它真的拿到的数据。</p>
+      </details>
+      <details>
+        <summary>能同时管多台机器吗？</summary>
+        <p>当前是单机面板（管本机上的多个实例）。每个实例可独立设置端口、内存、Java、启动参数、
+          RCON、自动重启与计划任务。</p>
+      </details>
+      <details>
+        <summary>数据存在哪？怎么迁移？</summary>
+        <p>单个 SQLite 库加实例目录。<code>MC_DATA_DIR</code> 环境变量可以指定数据根目录，
+          整个目录拷走即可迁移；面板启动时会自动补列迁移旧库结构。</p>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ 页脚 ============================ -->
+<footer class="foot">
+  <div class="wrap foot-in">
+    <div class="fbrand">
+      <span class="logo">MC</span>
+      <div><b>MC 开服面板</b><p>开源自托管的 Minecraft 多服务器管理面板</p></div>
+    </div>
+    <div class="fcols">
+      <div><h5>产品</h5>
+        <a href="#features">功能</a><a href="#cores">支持核心</a><a href="#start">快速开始</a></div>
+      <div><h5>运维</h5>
+        <a href="/doctor.html">浏览器自检</a><span class="mono">tools/panel_doctor.py</span>
+        <span class="mono">python -m tools.reset_password</span></div>
+      <div><h5>文档</h5>
+        <a href="/site/">官网首页</a>
+        <span class="mono">HANDOFF.md</span>
+        <span class="mono">PROGRESS.md</span></div>
+    </div>
+    <div class="fnote">
+      <p>本站为项目自述页，界面示意为按真实布局复刻的静态示意，非真实运行截图。</p>
+    </div>
+  </div>
+</footer>
+
+<script src="/site/site.js"></script>
+</body>
+</html>

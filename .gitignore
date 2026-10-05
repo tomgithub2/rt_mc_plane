@@ -1,0 +1,94 @@
+# ============================================================================
+#  MC 开服面板 · 开源忽略规则
+# ----------------------------------------------------------------------------
+#  原则：**只提交源码**。运行时数据、依赖产物、密钥、大文件全部挡掉。
+#
+#  为什么这么严：本机仓库约 492 MB，其中源码只有 1~2 MB，其余是
+#  备份归档(327 MB)、建筑导入工作区(57 MB)、研究脚手架(17 MB)、运行日志(39 MB)
+#  以及**含口令哈希与 RCON 密码的数据库与配置**。这些都不该进开源仓库。
+# ============================================================================
+
+# ---------------------------------------------------------------- 密钥与凭据
+# 面板自己的会话签名密钥、找回通道、任何证书
+*.key
+*.pem
+*.p12
+secret.key
+**/secret.key
+.env
+.env.*
+!.env.example
+
+# 口令工具（本地管理通道，含写死的开发口令，不对外）
+backend/tools/reset_password.py
+backend/tools/dev_set_password.py
+
+# ---------------------------------------------------------------- 运行时数据
+# 整个 data 目录：库、配置(含 RCON 密码)、实例世界、备份、下载、日志、Java
+backend/data/
+backend/data-shots/
+**/data/*.db
+**/data/*.db-shm
+**/data/*.db-wal
+**/mc.db
+**/config.json
+!docs/**/config.json
+
+# backend/tmp：早期研究留下的草稿（含一个 17.7MB 的 inner_server.jar）。
+# 不是产品的一部分；`selftest.py` 会自己 makedirs 重建它。
+backend/tmp/
+
+# 早期零散的探查脚本（不是产品代码，功能已被 tools/ 下的正式工具取代）
+backend/tools_probe_*.py
+
+# 口令工具（本地管理通道，含写死的开发口令，不对外）
+backend/tools/reset_password.py
+backend/tools/dev_set_password.py
+backend/tools_reset_pw.py
+
+# ---------------------------------------------------------------- 依赖产物
+backend/.deps/
+node_modules/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# ---------------------------------------------------------------- 大文件 / 工作区
+# 建筑导入工作区（测试用样本与 jar 都是可再生的）
+backend/data/buildwork/
+# 早期研究脚手架（17 MB，不属于产品）
+tools/_mcresearch/
+# 无头浏览器截图（验收时现场生成）
+docs/evidence/*.png
+docs/ui-review/
+*.tar.gz
+*.zip
+!docs/evidence/*.log
+
+# ---------------------------------------------------------------- 运行日志
+*.log
+!docs/evidence/*.log
+backend/data/run*.log
+backend/data/run*.err
+nohup.out
+
+# 体检报告（现场生成）
+体检报告.txt
+体检面板.bat
+
+# ---------------------------------------------------------------- 仅本地参考，不发布
+# 这两份是**第三方项目的内容**，只作为本地调研参考保留。
+# 按 docs/RESEARCH-snowolf.md 顶部的《使用边界》，不得随本项目对外分发。
+docs/snowolf-README.md
+docs/RESEARCH-schematic-formats.md
+
+# ---------------------------------------------------------------- 编辑器 / 系统
+.vscode/
+.idea/
+*.swp
+*.swo
+Thumbs.db
+desktop.ini
+.DS_Store

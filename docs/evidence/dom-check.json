@@ -1,0 +1,102 @@
+{
+  "base": "http://127.0.0.1:8124",
+  "results": [
+    {
+      "ok": true,
+      "label": "三种角色账号的 token 都拿到了（超管/普通用户/只读）"
+    },
+    {
+      "ok": true,
+      "label": "页面已脱离 boot 占位（真的渲染了）"
+    },
+    {
+      "ok": true,
+      "label": "标题是「账号管理」"
+    },
+    {
+      "ok": true,
+      "label": "用户表格画出了 ≥3 行（数据来自后端）"
+    },
+    {
+      "ok": true,
+      "label": "列表里有 admin（后端返回的真实用户）"
+    },
+    {
+      "ok": true,
+      "label": "超管行显示 role-super 金色徽标"
+    },
+    {
+      "ok": true,
+      "label": "其它角色徽标也按四色体系渲染"
+    },
+    {
+      "ok": true,
+      "label": "顶栏角色徽标显示角色中文名"
+    },
+    {
+      "ok": true,
+      "label": "超管能看到「账号管理」菜单项"
+    },
+    {
+      "ok": true,
+      "label": "超管访问账号管理不会被判越权"
+    },
+    {
+      "ok": true,
+      "label": "只读视角页面正常渲染"
+    },
+    {
+      "ok": true,
+      "label": "只读看不到「账号管理」菜单（按权限隐藏）"
+    },
+    {
+      "ok": true,
+      "label": "顶栏徽标显示「只读」"
+    },
+    {
+      "ok": true,
+      "label": "越权页不是白屏 / 不是 boot 占位"
+    },
+    {
+      "ok": true,
+      "label": "越权页给出「权限不足」空状态"
+    },
+    {
+      "ok": true,
+      "label": "空状态里写明缺少哪个权限点（user.manage）"
+    },
+    {
+      "ok": true,
+      "label": "空状态里有「返回实例列表」的行动按钮"
+    },
+    {
+      "ok": true,
+      "label": "越权时不渲染用户表格（没有把数据漏给只读）"
+    },
+    {
+      "ok": true,
+      "label": "普通用户视角页面正常渲染"
+    },
+    {
+      "ok": true,
+      "label": "普通用户看不到「账号管理」"
+    },
+    {
+      "ok": true,
+      "label": "顶栏徽标显示「普通用户」"
+    },
+    {
+      "ok": true,
+      "label": "window.MockAccounts 已不存在（假用户列表已删除）"
+    },
+    {
+      "ok": true,
+      "label": "window.Perm 存在且是真实实现（load/roleMeta）"
+    },
+    {
+      "ok": true,
+      "label": "本轮所有页面 console 无 JS 异常 / 无 4xx 资源错误"
+    }
+  ],
+  "console_errors": []
+}

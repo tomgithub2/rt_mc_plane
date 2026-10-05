@@ -1,0 +1,72 @@
+/* ============================================================================
+   MC 开服面板 · bg.css —— 背景层（图片轮播 / 每图独立遮罩 / 毛玻璃分区）
+   结构（由 components.js 的 Bg 组件渲染）：
+     #mc-bg                      固定定位的背景容器（z-index:-1，不拦截事件）
+       > .bg-item                每张图一个图层，background-image 内联
+           .bg-mask              该图自己的遮罩（背景色 + 透明度可独立设置）
+       > .bg-vignette            全局暗角，让前景文字在任何图上都读得清
+       > .bg-grain               极轻噪点，避免大色块渐变出现色带
+   ============================================================================ */
+/* ⚠️ 必须 `z-index: -1`（待在内容**背后**）：
+   原来写的是 `z-index: 0`，而 `position: fixed` + `z-index: 0` 会建立层叠上下文、
+   **盖在普通文档流内容之上** —— 加上这里原本还有 `background: var(--bg-base)` 这种不透明
+   底色，等于给整页糊了一层不透明膜：用户看到顶栏（sticky，自带层叠上下文）正常，
+   而**侧栏与内容区整片空白**。这与本文件头部写的 `z-index:-1` 意图也不一致。
+   底色改为透明：真正需要底色时由 `.bg-item` / `data-has-bg` 那套负责，
+   没有背景图时这一层不该画任何东西。 */
+#mc-bg {
+  position: fixed; inset: 0; z-index: -1; pointer-events: none; overflow: hidden;
+  background: transparent;
+}
+html, body { background: var(--bg-base); }
+.bg-item {
+  position: absolute; inset: 0;
+  background-size: cover; background-position: center; background-repeat: no-repeat;
+  opacity: 0; transition: opacity var(--dur-bg, 1200ms) ease-in-out;
+  will-change: opacity;
+}
+.bg-item.active { opacity: 1; }
+.bg-mask { position: absolute; inset: 0; background: var(--bg-mask-color, #000); opacity: var(--bg-mask-alpha, .55); }
+.bg-vignette {
+  position: absolute; inset: 0;
+  background: radial-gradient(120% 90% at 50% 40%, transparent 35%, rgba(0,0,0,.45) 100%);
+  opacity: var(--bg-vignette, .8);
+}
+.bg-grain {
+  position: absolute; inset: 0; opacity: .035;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+/* 有背景图时：内容区半透明，让背景透出来；无背景时保持实色（默认观感不变） */
+:root[data-has-bg='on'] .content { background: color-mix(in srgb, var(--bg-base) 62%, transparent); }
+:root[data-has-bg='on'] .sidebar { background: color-mix(in srgb, var(--bg-deep) 78%, transparent); backdrop-filter: blur(10px) saturate(1.1); }
+:root[data-has-bg='on'] .card { background: color-mix(in srgb, var(--surface-1) 86%, transparent); backdrop-filter: blur(8px); }
+@supports not (backdrop-filter: blur(2px)) {
+  :root[data-has-bg='on'] .content { background: color-mix(in srgb, var(--bg-base) 92%, transparent); }
+  :root[data-has-bg='on'] .sidebar { background: var(--bg-deep); }
+  :root[data-has-bg='on'] .card { background: var(--surface-1); }
+}
+
+/* 顶栏时钟（顶栏元素可见性开关） */
+.top-clock { font-family: var(--font-mono); font-size: var(--fs-1); color: var(--text-muted); font-variant-numeric: tabular-nums; }
+:root[data-show-clock='off'] .top-clock { display: none; }
+:root[data-show-crumbs='off'] .crumbs { display: none; }
+
+/* 背景管理器的缩略图网格（设置页用） */
+.bg-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--sp-3); }
+.bg-card {
+  border: 1px solid var(--line-2); border-radius: var(--r-md); overflow: hidden;
+  background: var(--surface-1); cursor: grab; position: relative;
+}
+.bg-card.dragging { opacity: .45; }
+.bg-card.drop-target { outline: 2px dashed var(--accent); outline-offset: -3px; }
+.bg-thumb { height: 84px; background-size: cover; background-position: center; background-color: var(--bg-sunken); position: relative; }
+.bg-thumb .idx {
+  position: absolute; left: 6px; top: 6px; background: rgba(0,0,0,.68); color: #fff;
+  font-family: var(--font-mono); font-size: 10px; padding: 1px 6px; border-radius: var(--r-pill);
+}
+.bg-card .body { padding: var(--sp-2) var(--sp-3) var(--sp-3); }
+.bg-card .nm { font-size: var(--fs-1); color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+input[type=range] { width: 100%; accent-color: var(--accent); }
+
+/* 启动占位：背景未加载完时避免闪白 */
+.bg-loading { position: absolute; inset: 0; background: var(--bg-base); }

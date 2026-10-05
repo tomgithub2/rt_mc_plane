@@ -1,0 +1,114 @@
+/* ============================================================================
+   视图样式：紧凑列表 / 分组 / 趋势
+   ----------------------------------------------------------------------------
+   紧凑列表：一行一个实例，目标是一屏看清二十来个。用 CSS Grid 定列宽（不是 <table>），
+   这样表头与数据行共用同一套列定义，窄屏还能整列隐藏而不破坏对齐。
+   ============================================================================ */
+
+/* ---------------------------------------------------------------- 紧凑列表 */
+.dense-list { padding: 0; overflow: hidden; }
+
+/* 列定义只写一处：表头与每行都引用它 */
+.dense-head,
+.dense-row {
+  display: grid;
+  grid-template-columns: minmax(160px, 2.2fr) 84px 78px 88px 62px 92px 74px 132px;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: 8px var(--card-pad-x);
+}
+.dense-head {
+  font-size: var(--fs-1); color: var(--text-muted); letter-spacing: .02em;
+  border-bottom: 1px solid var(--line-2); background: var(--surface-2);
+  position: sticky; top: 0; z-index: 1;
+}
+.dense-head .num, .dense-row .num { text-align: right; font-variant-numeric: tabular-nums; }
+
+.dense-row { border-bottom: 1px solid var(--line-1); transition: background-color var(--dur-fast) var(--ease); }
+.dense-row:last-child { border-bottom: 0; }
+.dense-row:hover { background: var(--bg-hover); }
+
+.dense-name {
+  display: flex; align-items: center; gap: var(--sp-2); min-width: 0; cursor: pointer;
+  color: var(--text-primary);
+}
+.dense-name:hover { text-decoration: underline; text-underline-offset: 3px; }
+.dense-name em {
+  font-style: normal; font-size: var(--fs-1); color: var(--text-faint);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.pin-mark { color: var(--text-secondary); font-size: 11px; }
+
+.dense-acts { display: flex; gap: 6px; justify-content: flex-end; }
+
+/* 状态小圆点：紧凑视图里用点代替整个徽标，省横向空间 */
+.dot {
+  width: 7px; height: 7px; border-radius: 50%; flex: 0 0 auto;
+  background: var(--neutral); display: inline-block;
+}
+.dot.running { background: var(--text-primary); }
+.dot.starting, .dot.stopping { background: var(--warning); }
+.dot.crashed { background: var(--danger); }
+.dot.stopped { background: var(--line-3); }
+
+/* 窄屏：优先丢掉"运行时长/端口/玩家"这三列，保住名称与操作 */
+@media (max-width: 1180px) {
+  .dense-head, .dense-row {
+    grid-template-columns: minmax(140px, 2fr) 78px 72px 80px 120px;
+  }
+  .dense-head > :nth-child(5), .dense-row > :nth-child(5),
+  .dense-head > :nth-child(6), .dense-row > :nth-child(6),
+  .dense-head > :nth-child(7), .dense-row > :nth-child(7) { display: none; }
+}
+@media (max-width: 780px) {
+  .dense-head, .dense-row { grid-template-columns: minmax(110px, 1fr) 72px 110px; }
+  .dense-head > :nth-child(3), .dense-row > :nth-child(3),
+  .dense-head > :nth-child(4), .dense-row > :nth-child(4) { display: none; }
+}
+
+/* ---------------------------------------------------------------- 分组视图 */
+.group-block { margin-bottom: var(--block-gap); }
+.group-block.collapsed .group-body { display: none; }
+.group-block.collapsed .group-head .chev { transform: rotate(-90deg); }
+.group-head {
+  display: flex; align-items: center; gap: var(--sp-3);
+  padding: var(--sp-2) 0 var(--sp-3); cursor: pointer; user-select: none;
+  border-bottom: 1px solid var(--line-1); margin-bottom: var(--sp-4);
+}
+.group-head .chev {
+  display: inline-flex; color: var(--text-muted);
+  transition: transform var(--dur) var(--ease);
+}
+.group-head h3 { margin: 0; font-size: var(--fs-4); font-weight: 600; }
+.group-head .right { margin-left: auto; }
+
+/* ---------------------------------------------------------------- 趋势视图 */
+.chart-host { width: 100%; min-height: 150px; }
+.chart-host.tall { min-height: 200px; }
+.chart-host svg { display: block; width: 100%; height: auto; }
+
+/* 状态色带：一行实例、每格一次采样。颜色沿用状态语义（成功态是灰，不抢眼） */
+.status-strip {
+  display: grid; gap: var(--sp-4);
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+}
+.status-cell { min-width: 0; }
+.status-cell .strip {
+  display: flex; gap: 1px; height: 14px; align-items: stretch;
+  border-radius: var(--r-xs); overflow: hidden; background: var(--line-1);
+}
+.status-cell .strip i { flex: 1 1 0; background: var(--line-2); min-width: 1px; }
+.status-cell .strip i.running { background: var(--text-secondary); }
+.status-cell .strip i.starting, .status-cell .strip i.stopping { background: var(--warning); }
+.status-cell .strip i.crashed { background: var(--danger); }
+.status-cell .small { margin-top: 5px; color: var(--text-muted); }
+.ellip { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* 视图切换按钮：图标 + 文字，激活态用实色底，比原来的纯文字更好认 */
+.btn-group[data-view-switch] .btn { gap: 5px; }
+.btn-group[data-view-switch] .btn svg { opacity: .8; }
+.btn-group[data-view-switch] .btn.active svg { opacity: 1; }
+@media (max-width: 900px) {
+  /* 窄屏只留图标，省横向空间 */
+  .btn-group[data-view-switch] .btn span { display: none; }
+}

@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<title>MC 面板自检</title>
+<style>
+  body{font-family:"Segoe UI",system-ui,sans-serif;background:#0B0E13;color:#E6EDF7;margin:0;padding:24px;line-height:1.6}
+  h1{font-size:20px;margin:0 0 4px}
+  .sub{color:#8B97A8;font-size:13px;margin-bottom:18px}
+  table{border-collapse:collapse;width:100%;max-width:900px;font-size:14px}
+  td,th{border-bottom:1px solid #1E2632;padding:7px 10px;text-align:left;vertical-align:top}
+  th{color:#8B97A8;font-weight:600;font-size:12px;letter-spacing:.04em}
+  .ok{color:#3FBF7F;font-weight:600}
+  .bad{color:#E4585F;font-weight:600}
+  .warn{color:#E0B040;font-weight:600}
+  code{font-family:Consolas,monospace;background:#141A24;padding:1px 5px;border-radius:3px;font-size:13px}
+  .box{max-width:900px;background:#111721;border:1px solid #1E2632;border-radius:10px;padding:14px 16px;margin:16px 0}
+  #sum{font-size:15px;font-weight:600;margin-top:6px}
+  button{background:#F5D061;color:#1A1405;border:0;border-radius:8px;padding:9px 16px;font-size:14px;font-weight:600;cursor:pointer;margin-top:14px}
+</style>
+</head>
+<body>
+<h1>MC 开服面板 · 自检</h1>
+<div class="sub">这一页会直接在你的浏览器里检查面板是否正常，并把结果列出来。把结果截图就行。</div>
+
+<div class="box">
+  <div id="sum">正在检查…</div>
+</div>
+
+<table id="t">
+  <thead><tr><th style="width:34%">检查项</th><th>结果</th></tr></thead>
+  <tbody></tbody>
+</table>
+
+<button onclick="location.reload()">重新检查</button>
+<button onclick="location.href='/'" style="margin-left:8px">打开面板</button>
+
+<script>
+(function () {
+  var tb = document.querySelector('#t tbody');
+  var bad = 0, warnN = 0;
+  function row(name, ok, detail, warn) {
+    if (ok === false) bad++;
+    if (warn) warnN++;
+    var tr = document.createElement('tr');
+    tr.innerHTML = '<td>' + name + '</td><td><span class="' +
+      (ok === true ? 'ok' : ok === false ? 'bad' : 'warn') + '">' +
+      (ok === true ? '✅ 正常' : ok === false ? '❌ 失败' : '⚠️ 需注意') + '</span> ' +
+      (detail || '') + '</td>';
+    tb.appendChild(tr);
+  }
+  function code(s) { return '<code>' + String(s).replace(/[<>&]/g, '') + '</code>'; }
+
+  row('当前地址', null, code(location.href));
+  row('页面来源', null, code(location.origin));
+
+  var tok = '';
+  try { tok = localStorage.getItem('mc_token') || ''; } catch (e) {}
+  row('本地登录令牌', tok ? null : false,
+      tok ? ('有，长度 ' + tok.length + ' 字符') : '没有（未登录或已被清掉）',
+      !!tok);
+
+  function head() { return tok ? { Authorization: 'Bearer ' + tok } : {}; }
+
+  var checks = [
+    ['/api/health', '面板服务在不在'],
+    ['/api/auth/me', '登录是否仍然有效'],
+    ['/api/me/permissions', '权限接口'],
+    ['/api/instances', '实例列表接口'],
+    ['/api/settings', '设置接口（仅超管 200，其它角色 403 属正常）']
+  ];
+  var files = [
+    '/js/main.js', '/js/permissions.js', '/js/router.js', '/js/components.js',
+    '/js/pages/instances.js', '/js/pages/settings.js', '/js/pages/accounts.js',
+    '/css/tokens.css', '/css/base.css', '/css/components.css', '/css/bg.css'
+  ];
+
+  var jobs = [];
+  checks.forEach(function (c) {
+    jobs.push(fetch(c[0], { headers: head() }).then(function (r) {
+      return r.text().then(function (t) {
+        var extra = '';
+        try {
+          var d = JSON.parse(t);
+          if (c[0] === '/api/me/permissions' && r.ok) extra = ' role=' + d.role + ' 权限点=' + (d.perms || []).length;
+          if (c[0] === '/api/auth/me' && r.ok) extra = ' user=' + (d.user || {}).username;
+          if (c[0] === '/api/instances' && r.ok) extra = ' 实例数=' + (d.instances || []).length;
+          if (!r.ok) extra = ' ' + code((d.detail || '').slice(0, 60));
+        } catch (e) {}
+        row(c[1] + ' <code>' + c[0] + '</code>', r.ok, 'HTTP ' + r.status + extra);
+      });
+    }).catch(function (e) {
+      row(c[1] + ' <code>' + c[0] + '</code>', false, '请求失败：' + e.message);
+    }));
+  });
+
+  files.forEach(function (f) {
+    jobs.push(fetch(f, { method: 'GET' }).then(function (r) {
+      var ct = r.headers.get('content-type') || '';
+      var goodCt = /javascript|css/.test(ct);
+      row(f, r.ok && goodCt, 'HTTP ' + r.status + '  Content-Type=' + code(ct || '（空）'));
+    }).catch(function (e) {
+      row(f, false, '请求失败：' + e.message);
+    }));
+  });
+
+  /* 关键：能不能在这个页面里真的执行面板的 JS */
+  var inlineTest = false;
+  try { new Function('return 1')(); inlineTest = true; } catch (e) {}
+
+  Promise.all(jobs).then(function () {
+    return fetch('/js/permissions.js').then(function (r) { return r.text(); });
+  }).then(function (src) {
+    var hasPerm = src.indexOf('window.Perm') >= 0;
+    row('能不能拿到面板脚本内容', hasPerm, hasPerm ? '取到 ' + src.length + ' 字节' : '内容不对（可能是旧的或空的）');
+    row('本页脚本能执行', inlineTest, inlineTest ? '浏览器 JS 正常' : '浏览器禁用了脚本或 CSP 拦住了');
+    row('浏览器', null, code(navigator.userAgent));
+    var s = document.getElementById('sum');
+    if (bad === 0) {
+      s.innerHTML = '<span class="ok">✅ 全部正常</span> —— 后端与前端文件都没问题。' +
+        '如果面板页面仍然是空白，请按 <b>Ctrl+Shift+R</b> 强制刷新（缓存里的旧页面会打架），' +
+        '还不行就把这一页截图发出来。';
+    } else {
+      s.innerHTML = '<span class="bad">❌ 有 ' + bad + ' 项失败</span>（' + warnN + ' 项需注意）—— ' +
+        '下面标红的就是原因，截图发出来即可。';
+    }
+  }).catch(function (e) {
+    document.getElementById('sum').innerHTML = '<span class="bad">自检脚本出错：' + e.message + '</span>';
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,119 @@
+/* ============================================================================
+   仪表盘（首屏）布局 —— 多实例卡片网格 + 快捷操作
+   ----------------------------------------------------------------------------
+   首屏采用多实例**卡片网格**：每张卡显示状态 / CPU / 内存并提供快捷启停，
+   卡片可**拖动排序**、可**置顶**常用实例。本文件只补这套布局需要的部分：
+     · 分组标题（置顶 / 全部实例）
+     · 卡片网格沿用 .inst-grid（auto-fill minmax(336px,1fr)），只加拖动/置顶的交互态
+     · 拖动时的高亮与"正在拖动"的半透明态
+   ============================================================================ */
+
+.dash-section { margin-bottom: var(--block-gap); }
+.dash-section-head {
+  display: flex; align-items: center; gap: var(--sp-3);
+  margin: 0 0 var(--sp-3);
+}
+.dash-section-head h2 {
+  margin: 0; font-size: var(--fs-4); font-weight: 600; color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+.dash-section-head .badge { flex: 0 0 auto; }
+
+/* 卡片：可拖动 + 置顶按钮 */
+.dash-card { cursor: grab; }
+.dash-card:active { cursor: grabbing; }
+.dash-card.dragging { opacity: .45; }
+.dash-card.drag-over {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft), var(--shadow-2);
+}
+.dash-pin {
+  flex: 0 0 auto; line-height: 1; font-size: 15px; padding: 2px 6px;
+  color: var(--text-muted);
+}
+.dash-pin:hover { color: var(--text-primary); }
+
+/* 顶栏服务器快速切换（在实例之间跳转） */
+.server-switch {
+  display: inline-flex; align-items: center; gap: var(--sp-2);
+  padding: 0 var(--sp-2) 0 var(--sp-3);
+  border: 1px solid var(--line-2); border-radius: var(--r-sm);
+  background: var(--surface-1); color: var(--text-secondary);
+  height: 30px;
+}
+.server-switch select {
+  border: 0; background: transparent; color: var(--text-primary);
+  font-size: var(--fs-2); padding: 0 var(--sp-1); height: 28px; max-width: 190px;
+  border-radius: 0; outline: none;
+}
+.server-switch select:focus { box-shadow: none; }
+.server-switch:hover { border-color: var(--line-3); }
+
+@media (max-width: 1180px) {
+  .server-switch { display: none; }        /* 窄屏先让位给面包屑与操作按钮 */
+}
+
+/* 置顶区与普通区之间给一道分隔，视觉上分清"常用"和"其余" */
+.dash-section + .dash-section {
+  padding-top: var(--block-gap);
+  border-top: 1px solid var(--line-1);
+}
+
+/* 主机资源条：横向紧凑一排；窄屏时让 4 个指标保持一行两列 */
+@media (max-width: 1180px) {
+  #dash-host.cols-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 780px) {
+  #dash-host.cols-4 { grid-template-columns: minmax(0, 1fr); }
+  .inst-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ============================================================================
+   实时更新的流畅度
+   ----------------------------------------------------------------------------
+   推送每秒一帧，直接改 textContent 会"硬跳"、看着像闪烁。这里做三件事：
+     · 数值变化时轻微上浮 + 淡入（transform / opacity 是合成层属性，**不触发布局**）
+     · 数字用**等宽数字**，位数变化时宽度不跳、整行不抖
+     · 徽标与指示灯的颜色变化走 transition，不瞬切
+   注意**不要**给 SVG 的 points 加 transition —— 那是几何属性，会触发布局重算，反而更卡；
+   sparkline 用整块淡入代替。
+   ============================================================================ */
+.metric .v,
+.stat .v,
+.dash-card [data-slot='uptime'],
+#dash-host .stat .s,
+.metrics .v {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+.metric .v,
+.stat .v { transition: color var(--dur) var(--ease); }
+
+@keyframes mc-val-in {
+  from { opacity: .35; transform: translateY(2px); }
+  to   { opacity: 1;   transform: none; }
+}
+.mc-val-updated { animation: mc-val-in 220ms var(--ease); }
+
+.dash-card [data-slot='badge'] .badge,
+.inst-card .badge {
+  transition: background-color var(--dur) var(--ease),
+              color var(--dur) var(--ease),
+              border-color var(--dur) var(--ease);
+}
+.dash-card .ring, .dash-card .status-ring {
+  transition: color var(--dur-slow) var(--ease), border-color var(--dur-slow) var(--ease);
+}
+
+.spark-wrap { transition: opacity var(--dur) var(--ease); }
+@keyframes mc-spark-in { from { opacity: .4; } to { opacity: 1; } }
+.spark-wrap.mc-spark-updated { animation: mc-spark-in var(--dur-slow) var(--ease); }
+
+#dash-live { transition: background-color var(--dur) var(--ease), color var(--dur) var(--ease); }
+
+/* 尊重系统的"减少动态效果" */
+@media (prefers-reduced-motion: reduce) {
+  .mc-val-updated, .spark-wrap.mc-spark-updated { animation: none !important; }
+  .dash-card [data-slot='badge'] .badge, .inst-card .badge, .metric .v, .stat .v,
+  .spark-wrap, #dash-live, .dash-card .ring { transition: none !important; }
+}
