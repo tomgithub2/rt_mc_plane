@@ -61,7 +61,7 @@ backend/data/buildwork/
 # 早期研究脚手架（17 MB，不属于产品）
 tools/_mcresearch/
 # 无头浏览器截图（验收时现场生成）
-docs/evidence/*.png
+docs/evidence/**/*.png
 docs/ui-review/
 *.tar.gz
 *.zip
