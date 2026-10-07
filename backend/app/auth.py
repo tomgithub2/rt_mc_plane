@@ -232,7 +232,7 @@ def ensure_admin_user() -> str:
             '',
             '  * 该口令只在此处显示一次，不会写入日志或页面，请立即保存。',
             '  * 登录后可在「设置 → 修改口令」中更换。',
-            '  * 若忘记口令：在服务器上执行 `python -m tools.reset_password` 直接改库。',
+            '  * 若忘记口令：在服务器上执行 `python tools/reset_admin.py admin` 重置（随包自带）。',
             '=' * 68,
             '',
         ]

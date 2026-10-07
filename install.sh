@@ -11,13 +11,22 @@
 #    sudo bash install.sh                     # 安装（默认端口 8100）
 #    sudo bash install.sh --port 8200         # 指定端口
 #    sudo bash install.sh --dir /opt/mc-panel # 指定安装目录
+#    sudo bash install.sh --no-systemd        # 只装程序、不注册 systemd 服务
 #    sudo bash install.sh --uninstall         # 卸载（会二次确认，默认保留数据）
+#
+#  ⚠️ 什么时候该用 --no-systemd：
+#    有些加固过的服务器把 /etc/systemd/system **整个目录**加了不可变属性
+#    （`chattr +i`，`lsattr` 显示 ----i---------），此时**连 root 都写不进去**，
+#    注册服务会报 `Operation not permitted`。宝塔的「系统加固」就会这么干。
+#    本脚本**不会**自动替你解除那个锁 —— 那会连带解开同机上其它服务的保护。
+#    → 要么加 --no-systemd 跳过服务注册（脚本会打印前台启动命令），
+#      要么你自己确认后手动：chattr -i /etc/systemd/system
 #
 #  脚本做的事：
 #    1. 安装系统依赖（python3 / python3-venv / curl / tar）
 #    2. 复制程序到 $INSTALL_DIR
 #    3. 建虚拟环境并安装 requirements.txt
-#    4. 写 systemd 服务 mc-panel 并开机自启
+#    4. 写 systemd 服务 mc-panel 并开机自启（--no-systemd 可跳过）
 #    5. 初始化数据库；**超级管理员初始口令只在本地终端打印一次**
 # ============================================================================
 set -euo pipefail
@@ -28,6 +37,7 @@ DATA_DIR=""
 PORT="8100"
 BIND_HOST="0.0.0.0"
 RUN_USER="mcpanel"
+WITH_SYSTEMD=1          # --no-systemd 置 0：只装程序，不注册服务
 UNINSTALL=0
 
 GOLD=$'\033[38;2;212;175;55m'
@@ -35,6 +45,9 @@ GOLDL=$'\033[38;2;245;208;97m'
 GREY=$'\033[38;2;150;150;150m'
 GREEN=$'\033[38;2;103;194;58m'
 RED=$'\033[38;2;245;108;108m'
+# ⚠️ BOLD 必须在这里定义：脚本是 `set -u`，用了没定义的变量会直接让脚本中止
+#    （实测踩过：完成横幅里用了 $BOLD，结果前边全装成功、却在最后一行崩掉）
+BOLD=$'\033[1m'
 RST=$'\033[0m'
 
 step() { printf "\n${GOLDL}==> %s${RST}\n" "$1"; }
@@ -50,8 +63,9 @@ while [ $# -gt 0 ]; do
     --dir) INSTALL_DIR="${2:-}"; shift 2 ;;
     --bind) BIND_HOST="${2:-}"; shift 2 ;;
     --user) RUN_USER="${2:-}"; shift 2 ;;
+    --no-systemd) WITH_SYSTEMD=0; shift ;;
     --uninstall) UNINSTALL=1; shift ;;
-    -h|--help) sed -n '2,26p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,32p' "$0"; exit 0 ;;
     "")
       # 空参数几乎总是**上游传参写法错**造成的（典型：
       # 引导脚本用 `"${PASS_ARGS[@]:-}"`，空数组会退化成一个空串参数）。
@@ -60,10 +74,85 @@ while [ $# -gt 0 ]; do
     *) die "未知参数：$1（用 --help 看用法）" ;;
   esac
 done
+
+# --- 参数校验（原来完全不校验：--port abc / --dir 空值 / 尾斜杠都会一路带到底）
+case "$PORT" in ''|*[!0-9]*) die "--port 必须是纯数字，收到：'$PORT'" ;; esac
+if [ "$PORT" -lt 1 ] || [ "$PORT" -gt 65535 ]; then
+  die "--port 要在 1-65535 之间，收到：$PORT"
+fi
+[ -n "$INSTALL_DIR" ] || die "--dir 不能为空"
+case "$INSTALL_DIR" in
+  /*) : ;;                                  # 要求绝对路径，否则后面 unit 里的路径不可靠
+  *) die "--dir 必须是绝对路径，收到：$INSTALL_DIR" ;;
+esac
+[ -n "$SERVICE_NAME" ] || die "服务名不能为空"
+[ -n "$RUN_USER" ] || die "--user 不能为空"
+# 去掉尾斜杠：否则会拼出 /opt/mc-panel//backend 这种路径
+INSTALL_DIR="${INSTALL_DIR%/}"
+[ "$INSTALL_DIR" = "" ] && die "--dir 不能是 /"
+# 端口不能已被占用（原来不查，装完才发现起不来）
+if command -v ss >/dev/null 2>&1 && ss -lnt 2>/dev/null | awk '{print $4}' | grep -qE "[:.]${PORT}\$"; then
+  die "端口 $PORT 已被占用（ss -lntp 可看是谁占用）；换一个：--port 8200"
+fi
+
 DATA_DIR="$INSTALL_DIR/backend/data"
 SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# 校验源码目录确实是"一个面板源码包"，而不是随便哪个目录。
+# ⚠️ 实测踩过：如果把 install.sh 放到 /tmp 单独执行，SRC_DIR 会变成 /tmp，
+#    于是下面 `tar -C $SRC_DIR` 会把整个 /tmp 打进安装目录（还会打到
+#    site_total.sock / mysql.sock 这些套接字），而且**漏掉 backend/**，
+#    最后卡在一句莫名其妙的 `cd: /opt/mc-panel/backend: No such file or directory`。
+if [ "$SRC_DIR" != "$INSTALL_DIR" ] && [ "$UNINSTALL" != "1" ]; then
+  MISSING=""
+  [ -f "$SRC_DIR/backend/run.py" ] || MISSING="backend/run.py"
+  [ -f "$SRC_DIR/backend/requirements.txt" ] || MISSING="${MISSING:-}${MISSING:+, }backend/requirements.txt"
+  [ -d "$SRC_DIR/frontend/dist" ] || MISSING="${MISSING:+$MISSING, }frontend/dist"
+  if [ -n "$MISSING" ]; then
+    printf "\n${RED}XX${RST}  %s\n" "源码目录不像一个完整的安装包：$SRC_DIR"
+    printf "      ${GREY}%s${RST}\n" "缺少：$MISSING"
+    printf "      ${GREY}%s${RST}\n" "请用官方一键安装（会先解包再执行包内的 install.sh）："
+    printf "      ${GREY}%s${RST}\n" "  curl -sSO https://www.rt888.icu/install_mc.sh && bash install_mc.sh"
+    printf "      ${GREY}%s${RST}\n" "或先解压源码包，再从包目录内执行："
+    printf "      ${GREY}%s${RST}\n" "  tar -xzf mc-panel-*.tar.gz && cd mc-panel-* && bash install.sh"
+    die "已中止，未做任何改动"
+  fi
+fi
+
 if [ "$(id -u)" != "0" ]; then die "请用 root 运行：sudo bash install.sh"; fi
+
+# --- systemd 可用性探测（原来只查 `command -v systemctl` —— "有命令"不等于"能用"）
+#     典型反例：加固过的机器把 /etc/systemd/system 加了 chattr +i，连 root 都写不进；
+#     容器里 systemctl 存在但 systemd 并不是 PID 1。这两种情况都要在**动手之前**拦住，
+#     否则会在第 187 行甩出一句没头没脑的 "Operation not permitted"。
+SYSTEMD_PROBLEM=""
+if [ "$WITH_SYSTEMD" = "1" ]; then
+  if ! command -v systemctl >/dev/null 2>&1; then
+    SYSTEMD_PROBLEM="没有 systemctl 命令（本机不是 systemd 系统）"
+  elif [ ! -d /run/systemd/system ]; then
+    SYSTEMD_PROBLEM="systemd 没有在运行（/run/systemd/system 不存在）；容器里常见"
+  elif ! touch "/etc/systemd/system/.mc-panel-wtest.$$" 2>/dev/null; then
+    if command -v lsattr >/dev/null 2>&1 && lsattr -d /etc/systemd/system 2>/dev/null | grep -q -- '----i'; then
+      SYSTEMD_PROBLEM="/etc/systemd/system 被加了**不可变属性**（chattr +i，宝塔「系统加固」会这么做）—— 连 root 都写不进去"
+    else
+      SYSTEMD_PROBLEM="/etc/systemd/system 不可写（可能是只读挂载 / LSM 拦截）"
+    fi
+  else
+    rm -f "/etc/systemd/system/.mc-panel-wtest.$$"
+  fi
+fi
+
+if [ -n "$SYSTEMD_PROBLEM" ]; then
+  printf "\n${RED}XX${RST}  %s\n" "无法注册 systemd 服务：$SYSTEMD_PROBLEM"
+  printf "      ${GREY}%s${RST}\n" "这不会影响程序文件与数据，本脚本不会自动替你解除该限制"
+  printf "      ${GREY}%s${RST}\n" "（自动解除会连带解开同机其它服务的保护）。两条正路："
+  printf "      ${GREY}%s${RST}\n" "  1) 跳过服务注册，只装程序：  bash install.sh --no-systemd"
+  printf "      ${GREY}%s${RST}\n" "  2) 你确认后手动解锁再重跑：  chattr -i /etc/systemd/system && bash install.sh"
+  if command -v lsattr >/dev/null 2>&1; then
+    printf "      ${GREY}%s${RST}\n" "查看当前锁： lsattr -d /etc/systemd/system"
+  fi
+  die "已中止，未做任何改动"
+fi
 
 # ---------------------------------------------------------------- 卸载
 if [ "$UNINSTALL" = "1" ]; then
@@ -75,11 +164,33 @@ if [ "$UNINSTALL" = "1" ]; then
     y|Y) ;;
     *) die "已取消" ;;
   esac
-  systemctl stop "$SERVICE_NAME" 2>/dev/null || true
-  systemctl disable "$SERVICE_NAME" 2>/dev/null || true
-  rm -f "/etc/systemd/system/$SERVICE_NAME.service"
-  systemctl daemon-reload || true
-  ok "服务已停止并移除"
+  if [ "$WITH_SYSTEMD" = "1" ]; then
+    systemctl stop "$SERVICE_NAME" 2>/dev/null || true
+    systemctl disable "$SERVICE_NAME" 2>/dev/null || true
+  else
+    # --no-systemd 表示本机注册不了服务；那些 systemctl 调用没有意义，
+    # 而且服务不存在时它们会失败（原来无守卫，只是靠 `|| true` 掩盖）
+    info "以 --no-systemd 卸载：跳过 systemctl 调用"
+  fi
+  # ⚠️ 加固过的机器上 unit 可能带不可变属性（chattr +i），此时 rm 会失败。
+  #    这里如实报告并给出解法，而不是 `|| true` 吞掉后照样说"已移除"。
+  if rm -f "/etc/systemd/system/$SERVICE_NAME.service" 2>/dev/null; then
+    ok "服务已停止并移除"
+  elif [ -e "/etc/systemd/system/$SERVICE_NAME.service" ]; then
+    warn "删除 /etc/systemd/system/$SERVICE_NAME.service 失败（文件可能带不可变属性）"
+    if command -v lsattr >/dev/null 2>&1; then
+      info "当前属性：$(lsattr /etc/systemd/system/$SERVICE_NAME.service 2>/dev/null | head -n1)"
+      info "手动解除后删除： chattr -i /etc/systemd/system/$SERVICE_NAME.service && rm -f /etc/systemd/system/$SERVICE_NAME.service"
+    fi
+    info "服务已停掉，但 unit 文件还在 —— 开机可能仍会尝试拉起"
+    systemctl daemon-reload 2>/dev/null || true
+    info "程序目录：$INSTALL_DIR（未删除，如需删除：rm -rf $INSTALL_DIR）"
+    info "数据目录：$DATA_DIR（未删除）"
+    exit 1
+  else
+    ok "服务已停止（unit 文件本就不存在）"
+  fi
+  systemctl daemon-reload 2>/dev/null || true
   info "程序目录：$INSTALL_DIR（未删除，如需删除：rm -rf $INSTALL_DIR）"
   info "数据目录：$DATA_DIR（未删除）"
   exit 0
@@ -91,7 +202,10 @@ printf "  ${GREY}独立部署：不依赖、不检测、不注册到同机其它
 
 # ---------------------------------------------------------------- 依赖
 step "检查系统与依赖"
-command -v systemctl >/dev/null 2>&1 || die "没有 systemctl（本脚本面向 systemd 发行版）"
+# 只有需要注册服务时才强制 systemd；--no-systemd 时不该拿它拦人
+if [ "$WITH_SYSTEMD" = "1" ]; then
+  command -v systemctl >/dev/null 2>&1 || die "没有 systemctl（要么用 systemd 发行版，要么加 --no-systemd）"
+fi
 if command -v apt-get >/dev/null 2>&1; then
   export DEBIAN_FRONTEND=noninteractive
   apt-get update -qq || warn "apt-get update 失败，继续尝试安装"
@@ -116,12 +230,46 @@ fi
 
 # ---------------------------------------------------------------- 用户
 step "准备运行身份"
-if [ "$RUN_USER" != "root" ] && ! id "$RUN_USER" >/dev/null 2>&1; then
-  useradd --system --home-dir "$INSTALL_DIR" --shell /usr/sbin/nologin "$RUN_USER" 2>/dev/null || \
-    useradd --system --home-dir "$INSTALL_DIR" --shell /sbin/nologin "$RUN_USER" 2>/dev/null || \
-    warn "创建用户 $RUN_USER 失败，将沿用 root"
+if [ "$RUN_USER" = "root" ]; then
+  # 显式选 root 是可以的（容器里常这样），但要说清楚，不能悄悄降级
+  warn "按你的指定，面板将以 root 身份运行（容器或特殊环境才建议这么做）"
+elif id "$RUN_USER" >/dev/null 2>&1; then
+  ok "复用已存在的用户 $RUN_USER"
+else
+  # ⚠️ 先查 useradd **能不能执行**，而不是等到它失败再猜原因。
+  #    有些加固环境（宝塔的 tamper_core / 防篡改内核保护）会把
+  #    /usr/sbin/useradd 的**可执行位去掉**（改成 644），此时它报的是
+  #    "Permission denied"（退出码 126）—— 光看返回码根本猜不到是这个原因。
+  if ! command -v useradd >/dev/null 2>&1; then
+    printf "\n${RED}XX${RST}  %s\n" "本机没有 useradd，无法创建专用运行用户 $RUN_USER"
+    printf "      ${GREY}%s${RST}\n" "  1) 复用已有低权用户：bash install.sh --user www"
+    printf "      ${GREY}%s${RST}\n" "  2) 或明确接受用 root 运行：bash install.sh --user root"
+    die "已中止，未做任何改动"
+  fi
+  if [ ! -x "$(command -v useradd)" ]; then
+    printf "\n${RED}XX${RST}  %s\n" "$(command -v useradd) 没有可执行权限（$(stat -c '%a' "$(command -v useradd)" 2>/dev/null)），无法创建用户"
+    printf "      ${GREY}%s${RST}\n" "这是**加固插件**改的（宝塔 tamper_core / 防篡改内核保护会这么做，"
+    printf "      ${GREY}%s${RST}\n" "本意是防木马建后门用户，副作用是合法管理员也用不了）。"
+    printf "      ${GREY}%s${RST}\n" "  1) 复用已有低权用户（推荐，零改动）：bash install.sh --user www"
+    printf "      ${GREY}%s${RST}\n" "  2) 恢复可执行位后重跑：chmod +x $(command -v useradd)"
+    printf "      ${GREY}%s${RST}\n" "  3) 或明确接受用 root 运行：bash install.sh --user root"
+    die "已中止，未做任何改动"
+  fi
+  if useradd --system --home-dir "$INSTALL_DIR" --shell /usr/sbin/nologin "$RUN_USER" 2>/dev/null \
+     || useradd --system --home-dir "$INSTALL_DIR" --shell /sbin/nologin "$RUN_USER" 2>/dev/null; then
+    ok "已创建运行用户 $RUN_USER"
+  else
+    # ⚠️ 原来这里只 warn 就沿用 root —— 那是个**静默的提权**：用户以为面板跑在
+    # 专用低权用户下，实际跑在 root。这里改成必须显式确认，不默认降级。
+    printf "\n${RED}XX${RST}  %s\n" "创建运行用户 $RUN_USER 失败"
+    printf "      ${GREY}%s${RST}\n" "本脚本不会在未告知的情况下改用 root 运行面板。"
+    printf "      ${GREY}%s${RST}\n" "  1) 手动建用户后重跑：useradd --system --shell /sbin/nologin $RUN_USER"
+    printf "      ${GREY}%s${RST}\n" "  2) 复用已有低权用户：bash install.sh --user www"
+    printf "      ${GREY}%s${RST}\n" "  3) 或明确接受用 root 运行：bash install.sh --user root"
+    die "已中止，未做任何改动"
+  fi
 fi
-ok "运行用户：$RUN_USER"
+ok "运行用户：$(id -un "$RUN_USER" 2>/dev/null || echo "$RUN_USER")"
 
 # ---------------------------------------------------------------- 复制程序
 step "复制程序到 $INSTALL_DIR"
@@ -133,7 +281,11 @@ if [ "$SRC_DIR" != "$INSTALL_DIR" ]; then
       --exclude='./backend/__pycache__' --exclude='*/__pycache__' --exclude='./docs/ui-review/_probe' \
       -cf - . | tar -C "$INSTALL_DIR" -xf -
 fi
-chmod -R a+rX "$INSTALL_DIR"
+# ⚠️ 原来这里是 `chmod -R a+rX "$INSTALL_DIR"` —— 把**整个安装目录**（含 backend/
+#    与其中的配置模板）变成世界可读，是个不必要的信息暴露面。真正需要被运行用户
+#    读到的只是程序文件；数据目录另有更严的权限（见下）。
+chmod -R go-w "$INSTALL_DIR"
+chmod -R a+rX "$INSTALL_DIR/backend" "$INSTALL_DIR/frontend" 2>/dev/null || chmod -R a+rX "$INSTALL_DIR"
 ok "程序文件已就位"
 
 # ---------------------------------------------------------------- 虚拟环境
@@ -183,8 +335,16 @@ chown -R "$RUN_USER":"$RUN_USER" "$INSTALL_DIR" 2>/dev/null || warn "chown 失�
 chmod 700 "$DATA_DIR" 2>/dev/null || true
 
 # ---------------------------------------------------------------- systemd
-step "注册 systemd 服务 $SERVICE_NAME"
-cat > "/etc/systemd/system/$SERVICE_NAME.service" <<UNIT
+UNIT_WRITTEN=0
+if [ "$WITH_SYSTEMD" = "1" ]; then
+  step "注册 systemd 服务 $SERVICE_NAME"
+  # ⚠️ 写到临时文件再 mv 进 /etc/systemd/system：
+  #    原来直接 `cat > /etc/systemd/system/...`，目录不可变时 `set -e` 会把整个
+  #    安装中止在一句没头没脑的 "Operation not permitted" 上，而且**前面已经装好的
+  #    东西全部白装**。这里改用可检测的写法：失败时给明确原因并**继续完成安装**，
+  #    而不是把程序留在半成品状态。
+  UNIT_TMP="$(mktemp)"
+  cat > "$UNIT_TMP" <<UNIT
 [Unit]
 Description=MC Server Panel (Minecraft server control panel)
 Documentation=file://$INSTALL_DIR/README.md
@@ -209,8 +369,27 @@ LimitNOFILE=65535
 [Install]
 WantedBy=multi-user.target
 UNIT
-systemctl daemon-reload
-ok "服务已注册（未启动，先初始化账号）"
+  if cp "$UNIT_TMP" "/etc/systemd/system/$SERVICE_NAME.service" 2>/dev/null; then
+    UNIT_WRITTEN=1
+    # daemon-reload 失败也要说清（原来它在 set -e 下、只取末行返回值，
+    # 会出现「服务报 active 但 reload 失败」的矛盾状态）
+    if systemctl daemon-reload 2>/dev/null; then
+      ok "服务已注册（未启动，先初始化账号）"
+    else
+      warn "daemon-reload 失败 —— unit 已落盘但 systemd 可能还没看到它"
+      warn "手动执行： systemctl daemon-reload"
+    fi
+  else
+    warn "写入 /etc/systemd/system/$SERVICE_NAME.service 失败（权限被环境限制）"
+    warn "程序与数据已经装好，只是**没有注册成服务**。"
+    warn "可手动： chattr -i /etc/systemd/system && cp $UNIT_TMP /etc/systemd/system/$SERVICE_NAME.service && systemctl daemon-reload"
+    warn "或直接用前台方式启动（见下方完成摘要）"
+  fi
+  rm -f "$UNIT_TMP"
+else
+  step "跳过 systemd 服务注册（--no-systemd）"
+  info "程序与数据照常安装；启动方式见下方完成摘要。"
+fi
 
 # ---------------------------------------------------------------- 初始化 + 初始口令
 step "初始化数据库并创建超级管理员"
@@ -231,30 +410,90 @@ PY
 )" || true
 INIT_PW="$(printf '%s' "$INIT_OUT" | sed -n 's/^INITIAL_PASSWORD=//p' | head -n1)"
 
-step "启动服务"
-systemctl enable --now "$SERVICE_NAME" >/dev/null 2>&1 || warn "启动失败，请查看：journalctl -u $SERVICE_NAME -n 50"
-sleep 2
-if systemctl is-active --quiet "$SERVICE_NAME"; then
-  ok "服务已启动并设为开机自启"
-else
-  warn "服务未处于 active 状态，请查看：journalctl -u $SERVICE_NAME -n 80"
+SERVICE_OK=0
+if [ "$UNIT_WRITTEN" = "1" ]; then
+  step "启动服务"
+  # `systemctl enable --now` 需要 systemd ≥220（--now 是 220 才加的）。
+  # 老发行版上它会直接失败，所以拆成 enable + start 两步，兼容性最好。
+  systemctl enable "$SERVICE_NAME" >/dev/null 2>&1 \
+    || warn "设置开机自启失败（systemctl enable），继续尝试启动"
+  systemctl start "$SERVICE_NAME" >/dev/null 2>&1 \
+    || warn "启动失败，请查看：journalctl -u $SERVICE_NAME -n 50"
+  # sleep 2 太乐观：慢机器上 JVM/依赖初始化可能超过 2 秒，会误判失败。
+  # 改成最多等 10 秒的轮询。
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    if systemctl is-active --quiet "$SERVICE_NAME"; then SERVICE_OK=1; break; fi
+    sleep 1
+  done
+  if [ "$SERVICE_OK" = "1" ]; then
+    ok "服务已启动并设为开机自启"
+  else
+    warn "服务未处于 active 状态，请查看：journalctl -u $SERVICE_NAME -n 80"
+  fi
 fi
 
 # 防火墙（可选，失败不影响安装）
+FIREWALL_NOTE=0
 if command -v ufw >/dev/null 2>&1 && ufw status 2>/dev/null | grep -q "Status: active"; then
-  ufw allow "$PORT/tcp" >/dev/null 2>&1 && ok "已放行 ufw 端口 $PORT/tcp" || true
+  if ufw allow "$PORT/tcp" >/dev/null 2>&1; then ok "已放行 ufw 端口 $PORT/tcp"; else FIREWALL_NOTE=1; fi
 elif command -v firewall-cmd >/dev/null 2>&1 && firewall-cmd --state >/dev/null 2>&1; then
-  firewall-cmd --permanent --add-port="$PORT/tcp" >/dev/null 2>&1 && firewall-cmd --reload >/dev/null 2>&1 \
-    && ok "已放行 firewalld 端口 $PORT/tcp" || true
+  if firewall-cmd --permanent --add-port="$PORT/tcp" >/dev/null 2>&1 && firewall-cmd --reload >/dev/null 2>&1; then
+    ok "已放行 firewalld 端口 $PORT/tcp"
+  else
+    FIREWALL_NOTE=1
+  fi
+fi
+if [ "$FIREWALL_NOTE" = "1" ]; then
+  warn "防火墙放行失败 —— 面板可能**外网连不上**（本机可访问）"
+  warn "请手动放行：$PORT/tcp"
+elif ! command -v ufw >/dev/null 2>&1 && ! command -v firewall-cmd >/dev/null 2>&1; then
+  info "未检测到 ufw/firewalld；若云厂商有安全组，记得放行 $PORT/tcp"
 fi
 
-printf "\n${GOLD}================= 安装完成 =================${RST}\n"
+# ⚠️ 完成横幅要如实反映结果：原来无论是否启动成功都打印「安装完成」，
+#    用户会以为已经跑起来了（这正是"以为成功、其实没起"的来源）。
+if [ "$SERVICE_OK" = "1" ]; then
+  printf "\n${GREEN}${BOLD}================= 安装完成 =================${RST}\n"
+elif [ "$UNIT_WRITTEN" = "1" ]; then
+  printf "\n${RED}${BOLD}===== 已安装，但服务没起来（需人工介入） =====${RST}\n"
+elif [ "$WITH_SYSTEMD" = "0" ]; then
+  printf "\n${GREEN}${BOLD}===== 安装完成（未注册服务，按下面命令前台启动） =====${RST}\n"
+else
+  printf "\n${RED}${BOLD}===== 已安装，但服务未注册成功（需人工介入） =====${RST}\n"
+fi
 printf "  面板地址   : ${GOLDL}http://<服务器IP>:%s/${RST}\n" "$PORT"
-printf "  服务管理   : systemctl {status|restart|stop} %s\n" "$SERVICE_NAME"
-printf "  查看日志   : journalctl -u %s -f\n" "$SERVICE_NAME"
+if [ "$UNIT_WRITTEN" = "1" ]; then
+  printf "  服务管理   : systemctl {status|restart|stop} %s\n" "$SERVICE_NAME"
+  printf "  查看日志   : journalctl -u %s -f\n" "$SERVICE_NAME"
+else
+  # 决定运行身份：优先用当前登录用户（-u），失败再退回"不加 -u"
+  # ⚠️ 有些加固环境会拦 `sudo -u`（宝塔安全模块会弹 "Tips from BT security"），
+  #    此时要用 runuser —— 所以这里两条都给出来，别让用户卡在启动方式上。
+  printf "  ${GREY}注意：若用 sudo -u 被安全模块拦截，改用 runuser：${RST}\n"
+  printf "    runuser -u %s -- env PYTHONUTF8=1 MC_DATA_DIR=%s %s/venv/bin/python %s/backend/run.py\n" \
+    "$RUN_USER" "$DATA_DIR" "$INSTALL_DIR" "$INSTALL_DIR"
+  printf "  ${GREY}前台启动：${RST}\n"
+  if [ "$RUN_USER" = "root" ]; then
+    printf "    cd %s/backend && PYTHONUTF8=1 MC_DATA_DIR=%s %s/venv/bin/python run.py\n" \
+      "$INSTALL_DIR" "$DATA_DIR" "$INSTALL_DIR"
+  else
+    printf "    cd %s/backend && runuser -u %s -- env PYTHONUTF8=1 MC_DATA_DIR=%s %s/venv/bin/python run.py\n" \
+      "$INSTALL_DIR" "$RUN_USER" "$DATA_DIR" "$INSTALL_DIR"
+  fi
+  printf "  ${GREY}后台常驻（无 systemd）：${RST}\n"
+  if [ "$RUN_USER" = "root" ]; then
+    printf "    cd %s/backend && nohup %s/venv/bin/python run.py > %s/run.log 2>&1 &\n" \
+      "$INSTALL_DIR" "$INSTALL_DIR" "$DATA_DIR"
+  else
+    printf "    runuser -u %s -- env MC_DATA_DIR=%s nohup %s/venv/bin/python %s/backend/run.py > %s/run.log 2>&1 &\n" \
+      "$RUN_USER" "$DATA_DIR" "$INSTALL_DIR" "$INSTALL_DIR" "$DATA_DIR"
+  fi
+fi
 printf "  数据目录   : %s\n" "$DATA_DIR"
 printf "  程序目录   : %s\n" "$INSTALL_DIR"
 printf "  配置文件   : %s/config.json（改端口后 restart 生效）\n" "$DATA_DIR"
+printf "  重置口令   : cd %s/backend && %s/venv/bin/python tools/reset_admin.py admin\n" \
+  "$INSTALL_DIR" "$INSTALL_DIR"
 printf "  卸载       : sudo bash %s/install.sh --uninstall\n" "$INSTALL_DIR"
 printf "\n"
 printf "  默认账号是 ${GOLDL}超级管理员${RST}，用户名 ${GOLDL}admin${RST}\n"
@@ -262,7 +501,20 @@ if [ -n "$INIT_PW" ]; then
   printf "  ${GOLD}初始口令（只显示这一次，请立刻保存）：${RST} ${GOLDL}%s${RST}\n" "$INIT_PW"
   printf "  ${GREY}提示：登录后请在「设置 → 修改口令」里更换。${RST}\n"
 else
-  printf "  ${GREY}数据库已存在管理员账号，未生成新口令（用原口令登录；忘记可执行 install.sh 之外的本地重置脚本）。${RST}\n"
+  printf "  ${GREY}数据库已存在管理员账号，未生成新口令（用原口令登录）。${RST}\n"
 fi
 printf "  ${GREY}与 RT面板（rt-panel）零耦合：本脚本未读取、未修改、未注册到它的任何文件/服务/数据库。${RST}\n"
 printf "${GOLD}============================================${RST}\n\n"
+
+# 收尾自检：真的能连上才算成功（避免"横幅说完成、实际连不上"）
+if [ "$SERVICE_OK" = "1" ] || [ "$WITH_SYSTEMD" = "0" ]; then
+  if command -v curl >/dev/null 2>&1; then
+    for _ in 1 2 3 4 5; do
+      if curl -fsS "http://127.0.0.1:$PORT/api/health" >/dev/null 2>&1; then
+        ok "本机自检通过：http://127.0.0.1:$PORT/api/health 有响应"
+        break
+      fi
+      sleep 1
+    done
+  fi
+fi
