@@ -28,7 +28,7 @@ import time
 import urllib.error
 import urllib.request
 
-UA = 'mc-server-panel/0.1 (+local)'
+UA = 'guanwang/mc/0.1 (+local)'
 TIMEOUT = 15
 PROBE_TIMEOUT = 10
 

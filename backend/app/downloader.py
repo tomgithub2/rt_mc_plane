@@ -23,7 +23,7 @@ import zipfile
 from .config import DOWNLOADS_DIR, get_config
 from .database import execute, now, query
 
-UA = 'mc-server-panel/0.1 (+local)'
+UA = 'guanwang/mc/0.1 (+local)'
 _tasks = {}
 _lock = threading.RLock()
 _sem = None

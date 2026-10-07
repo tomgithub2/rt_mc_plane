@@ -339,7 +339,7 @@ def fire_webhook(event: str, payload: dict):
                               ensure_ascii=False).encode('utf-8')
             req = urllib.request.Request(wh['url'], data=data,
                                          headers={'Content-Type': 'application/json',
-                                                  'User-Agent': 'mc-server-panel/0.1'})
+                                                  'User-Agent': 'guanwang/mc/0.1'})
             urllib.request.urlopen(req, timeout=8).read(64)
         except Exception:
             pass

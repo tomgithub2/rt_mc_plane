@@ -6,7 +6,7 @@
 import os
 import sys
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))     # mc-server-panel/
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))     # guanwang/mc/
 BACKEND = os.path.join(ROOT, 'backend')
 sys.path[:0] = [BACKEND, os.path.join(BACKEND, '.deps')]
 os.chdir(BACKEND)

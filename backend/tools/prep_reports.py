@@ -12,7 +12,7 @@ import urllib.request
 HERE = os.path.dirname(os.path.abspath(__file__))
 BACKEND = os.path.dirname(HERE)
 WORK = os.path.join(BACKEND, 'data', 'buildwork')
-UA = {'User-Agent': 'mc-server-panel/0.1 (+local)'}
+UA = {'User-Agent': 'guanwang/mc/0.1 (+local)'}
 
 
 def main():

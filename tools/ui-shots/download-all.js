@@ -92,7 +92,7 @@ const CORES = ['vanilla', 'paper', 'purpur', 'fabric', 'forge', 'neoforge', 'qui
     await new Promise((x) => setTimeout(x, 1200));
     await fetch(BASE + '/api/instances/' + id, { method: 'DELETE', headers: H });
     await new Promise((x) => setTimeout(x, 800));
-    const base = 'D:/DeepSeekHarness/mc-server-panel/backend/data/instances/';
+    const base = 'D:/DeepSeekHarness/guanwang/mc/backend/data/instances/';
     try { fs.readdirSync(base).filter((f) => f.startsWith(id + '_'))
       .forEach((f) => { try { fs.rmSync(base + f, { recursive: true, force: true }); } catch (e) {} }); } catch (e) {}
   }
