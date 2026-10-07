@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>MC 开服面板 · 一个页面管好所有 Minecraft 服务器</title>
-<meta name="description" content="开源、免登录游戏账号、纯浏览器操作的 Minecraft 多服务器管理面板。7 种核心一键下载、实时仪表盘、离线导入建筑、备份回滚、三级权限。" />
+<title>rt_mc 面板 · 一个页面管好所有 Minecraft 服务器</title>
+<meta name="description" content="开源、免登录游戏账号、纯浏览器操作的 Minecraft 多服务器管理面板。7 种核心一键下载、实时仪表盘、离线导入建筑、备份回滚、四级权限。" />
 <link rel="stylesheet" href="/css/tokens.css" />
 <link rel="stylesheet" href="/css/theme-mono.css" />
 <link rel="stylesheet" href="/site/site.css" />
@@ -15,8 +15,8 @@
 <header class="nav" id="nav">
   <div class="wrap nav-in">
     <a class="brand" href="#top">
-      <span class="logo">MC</span>
-      <span class="brand-txt"><b>MC 开服面板</b><i>Server Panel</i></span>
+      <span class="logo">RT</span>
+      <span class="brand-txt"><b>rt_mc 面板</b><i>Server Panel</i></span>
     </a>
     <nav class="nav-links" id="nav-links">
       <a href="#features">功能</a>
@@ -51,7 +51,7 @@
       <p class="lede">
         不用装客户端，不用游戏账号，不用在聊天窗里贴命令。
         7 种服务端核心一键下载、秒级刷新的实时仪表盘、离线导入建筑、
-        一键回滚的备份体系，以及按实例隔离的三级权限。
+        一键回滚的备份体系，以及按实例隔离的四级权限。
       </p>
       <div class="hero-act">
         <a class="btn primary lg" href="#start">两行命令跑起来</a>
@@ -60,8 +60,8 @@
       <dl class="facts">
         <div><dt>126</dt><dd>后端接口</dd></div>
         <div><dt>7</dt><dd>服务端核心</dd></div>
-        <div><dt>2</dt><dd>建筑导入引擎</dd></div>
-        <div><dt>161</dt><dd>自动化验收项</dd></div>
+        <div><dt>3</dt><dd>建筑导入引擎</dd></div>
+        <div><dt>205</dt><dd>自动化验收项</dd></div>
       </dl>
     </div>
 
@@ -74,7 +74,7 @@
       </div>
       <div class="mock-body">
         <aside class="mock-side">
-          <div class="m-brand"><span class="m-logo">MC</span></div>
+          <div class="m-brand"><span class="m-logo">RT</span></div>
           <div class="m-group">概览</div>
           <div class="m-item on">仪表盘</div>
           <div class="m-group">服务器</div>
@@ -148,7 +148,7 @@
       <article class="fcard">
         <span class="fi">03</span>
         <h3>离线导入建筑</h3>
-        <p>支持 <code>.schem</code> / <code>.schematic</code> / <code>.nbt</code> / <code>.litematic</code> / <code>.zip</code>。两套引擎：插件+RCON（实例运行中即可用）与<strong>离线写 Anvil 区块</strong>（无插件依赖）。导入前给完整预检报告，导入后可 sha256 一键回滚。</p>
+        <p>支持 <code>.schem</code> / <code>.schematic</code> / <code>.nbt</code> / <code>.litematic</code> / <code>.zip</code>。三套引擎：插件+RCON（实例运行中即可用）、<strong>离线写 Anvil 区块</strong>（无插件依赖），以及在原版 <code>/place template</code> 上兜底。导入前给完整预检报告，导入后可 sha256 一键回滚。</p>
       </article>
       <article class="fcard">
         <span class="fi">04</span>
@@ -157,7 +157,7 @@
       </article>
       <article class="fcard">
         <span class="fi">05</span>
-        <h3>三级权限 + 逐实例隔离</h3>
+        <h3>四级权限 + 逐实例隔离</h3>
         <p>超级管理员 / 管理员 / 普通用户 / 只读。普通用户<strong>只看得到自己的实例</strong>，含配额限制与归属过滤。后端是唯一边界，前端隐藏只是体验。</p>
       </article>
       <article class="fcard">
@@ -350,8 +350,8 @@
 <footer class="foot">
   <div class="wrap foot-in">
     <div class="fbrand">
-      <span class="logo">MC</span>
-      <div><b>MC 开服面板</b><p>开源自托管的 Minecraft 多服务器管理面板</p></div>
+      <span class="logo">RT</span>
+      <div><b>rt_mc 面板</b><p>开源自托管的 Minecraft 多服务器管理面板</p></div>
     </div>
     <div class="fcols">
       <div><h5>产品</h5>
