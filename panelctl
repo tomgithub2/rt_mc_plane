@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+# ============================================================================
+#  云枢MC开服面板 · 服务控制脚本（无 systemd 环境用）
+# ----------------------------------------------------------------------------
+#  为什么需要它：
+#    有些服务器把 /etc/systemd/system 加了不可变属性（chattr +i，宝塔「系统加固」），
+#    新服务**注册不进去**。此时面板改用本脚本 + crontab @reboot 自启。
+#
+#  用法（建议 root 执行；脚本会自动切到面板的运行用户）：
+#    bash panelctl start      启动（已启动则不重复启动）
+#    bash panelctl stop       停止
+#    bash panelctl restart    重启
+#    bash panelctl status     看状态（进程 / 端口 / 健康检查）
+#    bash panelctl log        跟踪日志
+#
+#  ⚠️ 切用户用 runuser，不用 sudo -u —— 宝塔安全模块会拦 sudo -u，而且是
+#     **静默拦截**（无输出、退出码 0），很难排查。
+# ============================================================================
+set -uo pipefail
+
+#: 由安装器写入的路径（安装时替换为实际值）
+INSTALL_DIR="__INSTALL_DIR__"
+RUN_USER="__RUN_USER__"
+DATA_DIR="$INSTALL_DIR/backend/data"
+PORT="__PORT__"
+LOG="$DATA_DIR/run.log"
+
+PY="$INSTALL_DIR/venv/bin/python"
+APP="$INSTALL_DIR/backend/run.py"
+
+die() { printf '  \033[38;2;245;108;108mXX\033[0m  %s\n' "$1" >&2; exit 1; }
+ok()  { printf '  \033[38;2;103;194;58mOK\033[0m  %s\n' "$1"; }
+info(){ printf '      \033[38;2;150;150;150m%s\033[0m\n' "$1"; }
+
+as_user() {
+  if [ "$RUN_USER" = "root" ]; then
+    env PYTHONUTF8=1 PYTHONIOENCODING=utf-8 MC_DATA_DIR="$DATA_DIR" "$@"
+  else
+    runuser -u "$RUN_USER" -- env PYTHONUTF8=1 PYTHONIOENCODING=utf-8 MC_DATA_DIR="$DATA_DIR" "$@"
+  fi
+}
+
+pid_of() {
+  # 精确匹配本安装目录下的 run.py，避免误伤别的面板
+  pgrep -f "^$PY $APP$" 2>/dev/null | head -1
+}
+
+health() {
+  command -v curl >/dev/null 2>&1 || return 1
+  curl -fsS --max-time 3 "http://127.0.0.1:$PORT/api/health" >/dev/null 2>&1
+}
+
+case "${1:-}" in
+  start)
+    [ -x "$PY" ] || die "找不到 $PY（面板装好了吗？）"
+    if [ -n "$(pid_of)" ]; then ok "已在运行（pid $(pid_of)）"; exit 0; fi
+    mkdir -p "$DATA_DIR"
+    [ "$RUN_USER" = "root" ] || chown -R "$RUN_USER:$RUN_USER" "$DATA_DIR" 2>/dev/null || true
+    # 不能直接 nohup 到日志文件再切用户：runuser 会先创建文件（属 root）
+    # 导致 www 写不进去。改成让**目标用户自己**重定向。
+    if [ "$RUN_USER" = "root" ]; then
+      ( cd "$INSTALL_DIR/backend" && exec env PYTHONUTF8=1 MC_DATA_DIR="$DATA_DIR" \
+          nohup "$PY" "$APP" >"$LOG" 2>&1 ) &
+    else
+      runuser -u "$RUN_USER" -- bash -c \
+        "cd '$INSTALL_DIR/backend' && exec env PYTHONUTF8=1 MC_DATA_DIR='$DATA_DIR' nohup '$PY' '$APP' >'$LOG' 2>&1" &
+    fi
+    for _ in $(seq 1 20); do
+      sleep 1
+      if health; then ok "已启动，健康检查通过：http://127.0.0.1:$PORT/"; exit 0; fi
+    done
+    printf '  \033[38;2;245;108;108m!!\033[0m  %s\n' "启动了但健康检查没通过，看日志：$LOG"
+    tail -n 15 "$LOG" 2>/dev/null | sed 's/^/      /'
+    exit 1
+    ;;
+  stop)
+    p="$(pid_of)"
+    if [ -z "$p" ]; then ok "本来就没在跑"; exit 0; fi
+    kill "$p" 2>/dev/null || true
+    for _ in $(seq 1 15); do
+      sleep 1
+      [ -z "$(pid_of)" ] && break
+    done
+    if [ -n "$(pid_of)" ]; then
+      kill -9 "$(pid_of)" 2>/dev/null || true
+      sleep 1
+    fi
+    [ -z "$(pid_of)" ] && ok "已停止" || die "还在跑，手动处理：kill -9 $(pid_of)"
+    ;;
+  restart)
+    "$0" stop || true
+    exec "$0" start
+    ;;
+  status)
+    p="$(pid_of)"
+    if [ -n "$p" ]; then
+      ok "运行中  pid=$p  用户=$(ps -o user= -p "$p" 2>/dev/null | tr -d ' ')"
+    else
+      printf '  \033[38;2;245;108;108m!!\033[0m  %s\n' "未运行"
+    fi
+    if health; then ok "健康检查 http://127.0.0.1:$PORT/api/health 通过"
+    else printf '  \033[38;2;245;108;108m!!\033[0m  %s\n' "健康检查失败"; fi
+    info "数据目录 $DATA_DIR"
+    info "日志 $LOG"
+    ;;
+  log)
+    tail -n 100 -f "$LOG"
+    ;;
+  ""|-h|--help)
+    sed -n '2,20p' "$0"
+    ;;
+  *)
+    die "未知参数：$1（用 --help 看用法）"
+    ;;
+esac

@@ -225,6 +225,25 @@ guanwang/mc/
     └── evidence/                验收证据（自检日志、DOM 断言、截图）
 ```
 
+### 服务控制（无 systemd 时）
+
+包内自带 `panelctl`，适合 **systemd 用不了**的环境（例如加固过的机器把
+`/etc/systemd/system` 设成了不可变 `chattr +i`）：
+
+```bash
+sudo bash /opt/mc-panel/panelctl start      # 启动（已启动则不重复启动）
+sudo bash /opt/mc-panel/panelctl status     # 看进程 / 端口 / 健康检查
+sudo bash /opt/mc-panel/panelctl restart
+sudo bash /opt/mc-panel/panelctl log        # 跟踪日志
+```
+
+`install.sh --no-systemd` 会自动把它装好并尝试注册 crontab `@reboot` 自启。
+⚠️ 若目标机的 crontab 也被加固锁了（`/var/spool/cron/crontabs` 带 `chattr +i`），
+脚本会**如实报告"开机自启未注册"**，并打印可手动添加的那一行 —— 不要以为它静默成功了。
+
+> 切用户一律用 `runuser`，不用 `sudo -u`：宝塔安全模块会**静默拦截** `sudo -u`
+> （无输出、退出码 0），极难排查。
+
 ### 验收工具（`tools/ui-shots/`）
 
 都是 Node + 无头 Edge（CDP），**读 DOM / 网络 / 控制台断言**，不靠截图判断：

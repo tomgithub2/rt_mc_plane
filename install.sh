@@ -394,8 +394,25 @@ fi
 # ---------------------------------------------------------------- 初始化 + 初始口令
 step "初始化数据库并创建超级管理员"
 info "初始口令只在本终端打印一次；不写入任何日志文件、不显示在网页、不落盘明文。"
-INIT_OUT="$(cd "$INSTALL_DIR/backend" && PYTHONUTF8=1 MC_DATA_DIR="$DATA_DIR" \
-  "$INSTALL_DIR/venv/bin/python" - <<'PY' 2>&1
+# ⚠️ 初始化**必须用运行身份**执行，不能以 root 跑：
+#    否则 mc.db 属 root，而服务以 $RUN_USER 运行 → 登录时写 sessions 表报
+#    `sqlite3.OperationalError: attempt to write a readonly database`，
+#    前端只看到一句「服务器内部错误」（实测踩过，排查了很久）。
+_init_as_user() {
+  # 用 runuser 而不是 sudo -u：有些加固环境（宝塔安全模块）会拦 sudo -u，
+  # 且是**静默拦截**（无输出、退出码 0），很难查。
+  if [ "$RUN_USER" = "root" ]; then
+    cd "$INSTALL_DIR/backend" && PYTHONUTF8=1 MC_DATA_DIR="$DATA_DIR" \
+      "$INSTALL_DIR/venv/bin/python" -
+  elif command -v runuser >/dev/null 2>&1; then
+    cd "$INSTALL_DIR/backend" && runuser -u "$RUN_USER" -- env PYTHONUTF8=1 \
+      MC_DATA_DIR="$DATA_DIR" "$INSTALL_DIR/venv/bin/python" -
+  else
+    cd "$INSTALL_DIR/backend" && su -s /bin/sh "$RUN_USER" -c \
+      "PYTHONUTF8=1 MC_DATA_DIR='$DATA_DIR' '$INSTALL_DIR/venv/bin/python' -"
+  fi
+}
+INIT_OUT="$(_init_as_user <<'PY' 2>&1
 import sys, os
 sys.path.insert(0, os.getcwd())
 from app.database import init_db
@@ -409,6 +426,17 @@ else:
 PY
 )" || true
 INIT_PW="$(printf '%s' "$INIT_OUT" | sed -n 's/^INITIAL_PASSWORD=//p' | head -n1)"
+
+# 双保险：无论初始化是否成功，都把数据目录交还给运行用户。
+# （上面已用运行身份执行，这一步是兜底 —— 万一是旧库/旧目录带过来的 root 属主。）
+if [ "$RUN_USER" != "root" ]; then
+  chown -R "$RUN_USER:$RUN_USER" "$DATA_DIR" 2>/dev/null \
+    || warn "把数据目录交给 $RUN_USER 失败，请手动：chown -R $RUN_USER:$RUN_USER $DATA_DIR"
+fi
+if [ -z "$INIT_PW" ] && [ -n "$(printf '%s' "$INIT_OUT" | grep -iE 'Traceback|Error' || true)" ]; then
+  warn "初始化过程有报错，开头几行："
+  printf '%s\n' "$INIT_OUT" | head -5 | sed 's/^/      /'
+fi
 
 SERVICE_OK=0
 if [ "$UNIT_WRITTEN" = "1" ]; then
@@ -448,6 +476,52 @@ if [ "$FIREWALL_NOTE" = "1" ]; then
   warn "请手动放行：$PORT/tcp"
 elif ! command -v ufw >/dev/null 2>&1 && ! command -v firewall-cmd >/dev/null 2>&1; then
   info "未检测到 ufw/firewalld；若云厂商有安全组，记得放行 $PORT/tcp"
+fi
+
+# ---------------------------------------------------------------- 无 systemd 时的服务控制 + 开机自启
+# --no-systemd（或 unit 写不进去）时，装一个自带的服务控制脚本，
+# 并用 crontab @reboot 做开机自启 —— 这**不碰 systemd**，所以在加固机器上也能用。
+BOOT_OK=0
+if [ "$SERVICE_OK" != "1" ]; then
+  step "安装服务控制脚本 panelctl"
+  if [ -f "$INSTALL_DIR/panelctl" ]; then
+    # 把安装时的实际值写进去（模板里是 __INSTALL_DIR__ 这类占位符）
+    sed -i \
+      -e "s|__INSTALL_DIR__|$INSTALL_DIR|g" \
+      -e "s|__RUN_USER__|$RUN_USER|g" \
+      -e "s|__PORT__|$PORT|g" \
+      "$INSTALL_DIR/panelctl" 2>/dev/null || true
+    chmod +x "$INSTALL_DIR/panelctl"
+    [ "$RUN_USER" = "root" ] || chown "$RUN_USER:$RUN_USER" "$INSTALL_DIR/panelctl" 2>/dev/null || true
+    ok "panelctl 已就位：bash $INSTALL_DIR/panelctl {start|stop|restart|status|log}"
+  else
+    warn "包内缺少 panelctl，跳过（不影响启动，只是少了个控制脚本）"
+  fi
+
+  step "注册开机自启（crontab @reboot，不碰 systemd）"
+  CRON_LINE="@reboot bash $INSTALL_DIR/panelctl start >/dev/null 2>&1"
+  if command -v crontab >/dev/null 2>&1; then
+    # 先备份现有 crontab（这台机器上其它服务也在用它）
+    _cron_bak="/root/crontab.bak.$SERVICE_NAME.$(date +%Y%m%d-%H%M%S)"
+    crontab -l >"$_cron_bak" 2>/dev/null || true
+    if crontab -l 2>/dev/null | grep -qF "panelctl start"; then
+      ok "开机自启已存在（跳过重复注册）"
+      BOOT_OK=1
+    elif { crontab -l 2>/dev/null; echo "$CRON_LINE"; } | crontab - 2>/dev/null; then
+      BOOT_OK=1
+      ok "已加入 crontab：$CRON_LINE"
+      info "原 crontab 已备份到 $_cron_bak"
+      info "查看： crontab -l | grep panelctl"
+    else
+      warn "写入 crontab 失败 —— 开机不会自动启动"
+      warn "可手动添加这一行（crontab -e）："
+      warn "  $CRON_LINE"
+    fi
+  else
+    warn "本机没有 crontab —— 开机不会自动启动"
+    warn "可改用你自己的守护方式，命令是："
+    warn "  bash $INSTALL_DIR/panelctl start"
+  fi
 fi
 
 # ⚠️ 完成横幅要如实反映结果：原来无论是否启动成功都打印「安装完成」，
@@ -491,6 +565,14 @@ else
 fi
 printf "  数据目录   : %s\n" "$DATA_DIR"
 printf "  程序目录   : %s\n" "$INSTALL_DIR"
+if [ -x "$INSTALL_DIR/panelctl" ]; then
+  printf "  服务控制   : bash %s/panelctl {start|stop|restart|status|log}\n" "$INSTALL_DIR"
+  if [ "$BOOT_OK" = "1" ]; then
+    printf "  开机自启   : 已注册（crontab @reboot）· 查看 crontab -l | grep panelctl\n"
+  else
+    printf "  开机自启   : ${RED}未注册${RST} —— 需手动加 crontab（见上方提示）\n"
+  fi
+fi
 printf "  配置文件   : %s/config.json（改端口后 restart 生效）\n" "$DATA_DIR"
 printf "  重置口令   : cd %s/backend && %s/venv/bin/python tools/reset_admin.py admin\n" \
   "$INSTALL_DIR" "$INSTALL_DIR"
