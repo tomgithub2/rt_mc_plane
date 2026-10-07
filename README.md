@@ -1,6 +1,6 @@
-# 云枢 MC 开服面板
+# 云枢MC开服面板
 
-> 仓库：**`yunshu-panel`**
+> 仓库：**`yunshu-mc-panel`**
 > 一个**独立可跑**的 Minecraft 多服务器管理面板。后端 FastAPI + SQLite，
 > 前端纯 HTML/CSS/JS（**无构建步骤**，后端直接托管 `frontend/dist/`）。
 
@@ -38,11 +38,11 @@
 ## 0.1 推到远程
 
 ```bash
-git remote add origin https://github.com/<你的用户名>/yunshu-panel.git
+git remote add origin https://github.com/<你的用户名>/yunshu-mc-panel.git
 git push -u origin main
 
 # Gitee
-git remote add gitee https://gitee.com/<你的用户名>/yunshu-panel.git
+git remote add gitee https://gitee.com/<你的用户名>/yunshu-mc-panel.git
 git push -u gitee main
 ```
 
@@ -364,7 +364,7 @@ python -m tools.panel_doctor        # 或浏览器打开 /doctor.html
 （GNU Affero 通用公共许可证 第 3 版或更新版本）授权。协议全文见 [`LICENSE`](LICENSE)。
 
 ```
-Copyright (C) 2026  yunshu-panel contributors
+Copyright (C) 2026  yunshu-mc-panel contributors
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published by
@@ -386,7 +386,7 @@ the Free Software Foundation, either version 3 of the License, or
 **你可以**保留自己的版权，也可以为你的修改选择任何兼容的协议；
 但分发时必须满足上述条件。
 
-Copyright (C) 2026 yunshu-panel contributors
+Copyright (C) 2026 yunshu-mc-panel contributors
 
 ---
 
