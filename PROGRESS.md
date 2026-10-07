@@ -1,4 +1,4 @@
-# PROGRESS · 锐同MC开服面板（当前进度快照）
+# PROGRESS · 芮拓MC开服面板（当前进度快照）
 
 > 总入口仍是 [`HANDOFF.md`](HANDOFF.md)（项目全貌、规格索引、环境坑）。
 > 本文件记录**最近一次会话真实做到哪、证据在哪、还欠什么**。
@@ -521,7 +521,7 @@ node ..\tools\ui-shots\repro-login.js http://127.0.0.1:8100 <口令>
 | 1 | MC 开服面板 | yunshu-mc-panel（后改） |
 | 2 | rt_mc 面板 | rt_mc_plane（GitHub 原用名） |
 | 3 | 云枢面板 | yunshu-mc-panel |
-| 4 | **锐同面板（当前）** | yunshu-mc-panel（用户定：仓库先不动） |
+| 4 | **芮拓面板（当前）** | yunshu-mc-panel（用户定：仓库先不动） |
 
 ⚠️ 改名时要动的面：`frontend/dist/index.html`（title/boot-logo）、`js/components.js`（侧栏）、
 `js/pages/login.js`、`site/index.html`（两处 logo + brand-txt）、`app/config.py` 默认 site_name、
