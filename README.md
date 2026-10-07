@@ -1,4 +1,4 @@
-# MC 开服面板
+# rt_mc 面板
 
 > 仓库：**`rt_mc_plane`**
 > 一个**独立可跑**的 Minecraft 多服务器管理面板。后端 FastAPI + SQLite，
