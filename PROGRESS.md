@@ -513,3 +513,18 @@ node ..\tools\ui-shots\repro-login.js http://127.0.0.1:8100 <口令>
   下一轮脚本就会**连到旧服务**上跑（本次踩过，测试因此在脏状态上失败）。
 - 架外仍有两个**本次会话之前**就存在的残留 python 进程：`tmp/place_var.py` 与一个 8110 端口的面板。
   它们不是本轮产生的，未清理（如需清理请先确认不是你在用的）。
+
+## 展示名改名历史（避免下次再摸不清）
+
+| 次序 | 展示名 | 仓库名 |
+|---|---|---|
+| 1 | MC 开服面板 | yunshu-mc-panel（后改） |
+| 2 | rt_mc 面板 | rt_mc_plane（GitHub 原用名） |
+| 3 | 云枢面板 | yunshu-mc-panel |
+| 4 | **锐同面板（当前）** | yunshu-mc-panel（用户定：仓库先不动） |
+
+⚠️ 改名时要动的面：`frontend/dist/index.html`（title/boot-logo）、`js/components.js`（侧栏）、
+`js/pages/login.js`、`site/index.html`（两处 logo + brand-txt）、`app/config.py` 默认 site_name、
+`app/main.py` FastAPI title、`run.py` 横幅、`app/auth.py`、`app/mcprops.py`、`app/serverctl.py`、
+`tools/reset_*.py`、`install.sh`、`panelctl*`、`selftest.py` 的标题断言、各 css/js 文件头注释，
+**以及运行中实例的 `backend/data/config.json` 的 site_name + 重启面板**（否则界面不变）。
