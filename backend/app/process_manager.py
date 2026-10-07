@@ -247,6 +247,83 @@ class Manager:
             cmd.append('nogui')
         return cmd
 
+    def _spawn_diag(self, cmd: list, workdir: str, env: dict, exc: BaseException) -> dict:
+        """子进程创建失败时，把**全部上下文**收集起来（返回摘要 + 落盘全文）。
+
+        为什么需要：`subprocess` 失败时抛的异常可能是**空消息**的
+        （`SubprocessError('')`，errno/err_msg 都被丢掉），光看它一点线索都没有。
+        这里把 errno、路径可执行性、权限、ulimit、cwd、uid 全部记下来。
+        """
+        import errno as _errno
+        import resource as _resource
+        import traceback as _tb
+        info = {
+            'exc_type': type(exc).__name__,
+            'exc_repr': repr(exc),
+            'exc_str': str(exc),
+            'errno': getattr(exc, 'errno', None),
+            'errno_name': None,
+            'filename': getattr(exc, 'filename', None),
+            'cmd': cmd,
+            'cwd': workdir,
+            'cwd_exists': os.path.isdir(workdir),
+            'cwd_writable': os.access(workdir, os.W_OK) if os.path.isdir(workdir) else None,
+            'exe': cmd[0] if cmd else None,
+            'exe_exists': os.path.isfile(cmd[0]) if cmd else None,
+            'exe_executable': os.access(cmd[0], os.X_OK) if cmd and os.path.isfile(cmd[0]) else None,
+            'uid': os.getuid() if hasattr(os, 'getuid') else None,
+            'euid': os.geteuid() if hasattr(os, 'geteuid') else None,
+            'pid': os.getpid(),
+            'open_fds': None,
+            'no_new_privs': None,
+            'ulimit_nofile': None,
+        }
+        try:
+            info['ulimit_nofile'] = _resource.getrlimit(_resource.RLIMIT_NOFILE)
+        except Exception:                                     # noqa: BLE001
+            pass
+        try:
+            info['open_fds'] = len(os.listdir(f'/proc/{os.getpid()}/fd'))
+        except Exception:                                     # noqa: BLE001
+            pass
+        try:
+            with open(f'/proc/{os.getpid()}/status', encoding='utf-8') as f:
+                for ln in f:
+                    if ln.startswith(('NoNewPrivs:', 'Seccomp:', 'CapEff:')):
+                        k, _, v = ln.partition(':')
+                        info[k.strip().lower()] = v.strip()
+        except Exception:                                     # noqa: BLE001
+            pass
+        if info['errno'] is not None:
+            try:
+                info['errno_name'] = _errno.errorcode.get(info['errno'], '?')
+            except Exception:                                 # noqa: BLE001
+                pass
+        # 全文（含 traceback）落到 data 目录，便于事后看
+        try:
+            from .config import DATA_DIR                       # 局部 import，避免循环
+            path = os.path.join(DATA_DIR, 'spawn_fail.log')
+            with open(path, 'a', encoding='utf-8') as f:
+                f.write('=' * 70 + '\n')
+                f.write(time.strftime('%Y-%m-%d %H:%M:%S') + '\n')
+                for k, v in info.items():
+                    f.write(f'{k}: {v}\n')
+                f.write('--- traceback ---\n')
+                f.write(_tb.format_exc())
+                f.write('\n')
+            info['diag_file'] = path
+        except Exception:                                     # noqa: BLE001
+            pass
+        try:
+            print('[实例启动失败诊断] %s' % {k: info[k] for k in
+                                            ('exc_type', 'errno', 'errno_name',
+                                             'exe_exists', 'exe_executable',
+                                             'cwd_writable', 'open_fds')},
+                  flush=True)
+        except Exception:                                     # noqa: BLE001
+            pass
+        return info
+
     def start(self, inst_id: int, by: str = 'panel') -> dict:
         inst = self.get(inst_id)
         with inst.lock:
@@ -292,7 +369,13 @@ class Manager:
             except FileNotFoundError:
                 return {'ok': False, 'error': f'找不到 Java 可执行文件：{cmd[0]}（请在设置中指定 java 路径）'}
             except Exception as e:
-                return {'ok': False, 'error': f'启动失败：{type(e).__name__}: {e}'}
+                # ⚠️ 子进程创建失败时，异常信息经常**是空的**（实测遇到过
+                #    `SubprocessError('')`：type 名称在、消息和 errno 全空，
+                #    只靠它根本没法排查）。这里把**全部上下文**落盘，
+                #    下次失败就能直接看到 errno / 路径 / 权限到底差在哪。
+                diag = self._spawn_diag(cmd, workdir, env, e)
+                return {'ok': False, 'error': f'启动失败：{type(e).__name__}: {e}',
+                        'diag': diag, 'log': 'backend/data/spawn_fail.log'}
 
             inst.proc = proc
             inst.pid = proc.pid

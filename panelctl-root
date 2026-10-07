@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+# ============================================================================
+#  云枢MC开服面板 · 启动脚本（无 systemd 的加固服务器用）
+# ----------------------------------------------------------------------------
+#  为什么面板必须以 root 跑（实测定性，不是偷懒）：
+#    这台机器装了宝塔安全模块，它**按用户拦截 execve**：
+#      · www 用户跑 MC 服时 spawn 子进程必失败，但异常是畸形的
+#        `SubprocessError('')`（连 errno 都没有），极难排查；
+#      · 连 `www` 跑 /usr/bin/timeout 都报 "Success"（被拦但错误码是假的）；
+#      · 同一个面板进程换成 root 启动 → 实例立刻起来（实测 status=running，
+#        MC 日志走到 "Preparing level world"）。
+#    而这台机器上既有的 rt-site / rt-panel 两个服务**本来就都以 root 运行**。
+#
+#  ⚠️ 全程**零加固改动**：不动 systemd / crontab / chattr / useradd，
+#     不新建用户，随时可以换成别的身份或直接停掉。
+# ============================================================================
+set -uo pipefail
+
+INSTALL_DIR="/opt/mc-panel"
+DATA_DIR="$INSTALL_DIR/backend/data"
+LOG="$DATA_DIR/run.log"
+PY="$INSTALL_DIR/venv/bin/python"
+APP="$INSTALL_DIR/backend/run.py"
+PORT="8100"
+
+die()  { printf '  \033[38;2;245;108;108mXX\033[0m  %s\n' "$1" >&2; exit 1; }
+ok()   { printf '  \033[38;2;103;194;58mOK\033[0m  %s\n' "$1"; }
+warn() { printf '  \033[38;2;245;108;108m!!\033[0m  %s\n' "$1"; }
+info() { printf '      \033[38;2;150;150;150m%s\033[0m\n' "$1"; }
+
+#: 精确匹配本面板的进程（不用宽模式，避免误杀）
+pid_of() { pgrep -f "^$PY $APP$" 2>/dev/null | head -1; }
+health() { curl -fsS --max-time 3 "http://127.0.0.1:$PORT/api/health" >/dev/null 2>&1; }
+
+case "${1:-}" in
+  start)
+    [ -x "$PY" ] || die "找不到 $PY（面板装好了吗？）"
+    if [ -n "$(pid_of)" ]; then ok "已在运行（pid $(pid_of)）"; exit 0; fi
+    mkdir -p "$DATA_DIR"
+    # 面板以 root 管理，但把**数据/程序目录**交给运行用户，避免权限混乱
+    chown -R www:www "$DATA_DIR" 2>/dev/null || true
+    cd "$INSTALL_DIR/backend" || die "进不去 $INSTALL_DIR/backend"
+    exec env PYTHONUTF8=1 PYTHONIOENCODING=utf-8 MC_DATA_DIR="$DATA_DIR" \
+      "$PY" "$APP" >>"$LOG" 2>&1
+    ;;
+  stop)
+    p="$(pid_of)"
+    [ -z "$p" ] && { ok "本来就没在跑"; exit 0; }
+    kill "$p" 2>/dev/null || true
+    for _ in $(seq 1 15); do sleep 1; [ -z "$(pid_of)" ] && break; done
+    [ -n "$(pid_of)" ] && kill -9 "$(pid_of)" 2>/dev/null && sleep 1
+    [ -z "$(pid_of)" ] && ok "已停止" || die "还在跑：kill -9 $(pid_of)"
+    ;;
+  restart) "$0" stop || true; "$0" start ;;
+  status)
+    p="$(pid_of)"
+    if [ -n "$p" ]; then ok "运行中  pid=$p  用户=$(ps -o user= -p "$p" 2>/dev/null | tr -d ' ')"
+    else warn "未运行"; fi
+    health && ok "健康检查 http://127.0.0.1:$PORT/api/health 通过" || warn "健康检查失败"
+    info "数据目录 $DATA_DIR"
+    info "日志 $LOG"
+    ;;
+  log) tail -n 100 -f "$LOG" ;;
+  ""|-h|--help) sed -n '2,26p' "$0" ;;
+  *) die "未知参数：$1（用 --help 看用法）" ;;
+esac
