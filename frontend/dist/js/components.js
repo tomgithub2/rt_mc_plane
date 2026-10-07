@@ -111,7 +111,7 @@ window.C = (function () {
     return '' +
       '<div class="shell">' +
         '<aside class="sidebar" id="mc-sidebar">' +
-          '<div class="brand"><div class="brand-logo">MC</div>' +
+          '<div class="brand"><div class="brand-logo">云枢</div>' +
             '<div><div class="brand-name">云枢MC开服面板</div>' +
             '<div class="brand-sub">Server Panel</div></div></div>' +
           '<nav class="nav">' + navHtml(opts.active || '') + '</nav>' +

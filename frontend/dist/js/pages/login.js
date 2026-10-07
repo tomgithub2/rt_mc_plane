@@ -19,7 +19,7 @@ Pages.login = function (app) {
       '</section>' +
       '<section class="login-panel">' +
         '<form class="login-card" id="login-form" autocomplete="on">' +
-          '<div class="login-logo">MC</div>' +
+          '<div class="login-logo">云枢</div>' +
           '<div class="login-title">登录面板</div>' +
           '<div class="login-sub">首次运行的初始口令在服务端本地终端打印一次</div>' +
           '<div class="firstrun">首次运行提示：系统已自动创建默认账号 <b>admin</b>，其角色是' +

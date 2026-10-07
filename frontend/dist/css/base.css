@@ -43,6 +43,8 @@ code, pre, .mono { font-family: var(--font-mono); }
   display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow-2);
   animation: mc-pulse 1.8s var(--ease) infinite;
 }
+/* 中文徽标：启动页 56px 见方 */
+.boot-logo { font-family: var(--font-sans); font-size: 22px; letter-spacing: -.04em; }
 .boot-text { color: var(--accent-bright); font-size: var(--fs-4); letter-spacing: var(--ls-kicker); }
 .boot-hint { font-size: var(--fs-1); color: var(--text-muted); }
 @keyframes mc-pulse { 0%, 100% { opacity: 1 } 50% { opacity: .5 } }
@@ -70,6 +72,8 @@ code, pre, .mono { font-family: var(--font-mono); }
   color: var(--accent-ink); font-family: var(--font-mono); font-weight: 800; font-size: var(--fs-1);
   display: flex; align-items: center; justify-content: center; flex: 0 0 auto;
 }
+/* 中文徽标：两字汉字比两字母宽，字号下调并收紧字距 */
+.brand-logo { font-family: var(--font-sans); font-size: 13px; letter-spacing: -.04em; }
 .brand-name { font-weight: 700; font-size: var(--fs-3); letter-spacing: .02em; white-space: nowrap; }
 .brand-sub { font-size: 10px; color: var(--text-faint); letter-spacing: var(--ls-kicker); text-transform: uppercase; white-space: nowrap; }
 .nav { padding: var(--sp-3) var(--sp-2); overflow-y: auto; flex: 1 1 auto; }

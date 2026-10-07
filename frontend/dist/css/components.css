@@ -317,6 +317,8 @@ td.mono, th.mono { font-family: var(--font-mono); font-size: var(--fs-1); }
   color: var(--accent-ink); font-family: var(--font-mono); font-weight: 800; font-size: var(--fs-4);
   display: flex; align-items: center; justify-content: center; margin-bottom: var(--sp-5);
 }
+/* 中文徽标：登录页 44px 见方 */
+.login-logo { font-family: var(--font-sans); font-size: 17px; letter-spacing: -.04em; }
 .login-title { font-size: var(--fs-5); font-weight: 700; letter-spacing: -.01em; }
 .login-sub { color: var(--text-muted); font-size: var(--fs-2); margin-bottom: var(--sp-6); }
 .login-err {
