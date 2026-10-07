@@ -1,4 +1,4 @@
-# rt_mc 面板 · 设计系统（DESIGN.md）
+# 云枢面板 · 设计系统（DESIGN.md）
 
 > 本文件是前端（次要件）的设计基线：**token 表 + 组件清单 + 12 条硬指标自查 + 截图索引**。
 > 所有数值都能在 `frontend/dist/css/tokens.css` 里逐条对上；改 token 必须同步本表。
