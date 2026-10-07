@@ -341,6 +341,19 @@ td.mono, th.mono { font-family: var(--font-mono); font-size: var(--fs-1); }
 .step.done { border-color: color-mix(in srgb, var(--success) 45%, transparent); color: var(--success); }
 .step.done .n::after { content: ' ✓'; }
 .wizard-body { min-height: 260px; }
+/* ⚠️ 向导的"卡片内滚动 + 导航始终可达"约束。
+   为什么需要：选版本那一步（版本列表 + 构建/手填 + 当前选择）叠起来很容易超过视口，
+   结果「上一步 / 下一步」被顶到屏幕外、用户点不到（实测第 2 步就中招）。
+   做法：给卡片体一个**视口相关的高度上限**并允许内部滚动，导航按钮就不会被推走。 */
+.wizard-body > .card {
+  max-height: calc(100vh - 260px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+/* 窄屏（<900px）时侧栏会变高，再留一点余量 */
+@media (max-width: 900px) {
+  .wizard-body > .card { max-height: calc(100vh - 200px); }
+}
 .core-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: var(--sp-3); }
 .core-card {
   border: 1px solid var(--line-2); border-radius: var(--r-md); padding: var(--sp-4); cursor: pointer;

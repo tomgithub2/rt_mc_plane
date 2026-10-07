@@ -112,15 +112,17 @@ Pages.create = function (app) {
         '<div>' + verListHead('快照 / 预发布', 'v-other', other, '无') + '</div>' +
       '</div>' +
     '</div>' +
-    /* "当前选择" + 构建 + 手填，都放在版本卡片**外面的独立卡片**里。
-       之前它们挤在同一张卡片内，而版本列表是滚动容器会占满可用高度，
-       结果构建列表（全宽）叠在版本列表项上面（实测重叠率 40%~100%）。 */
+    /* "当前选择" + 手填，放在版本卡片**外面的独立卡片**里（版本列表是滚动容器，
+       挤在同一张卡里会叠在一起）。 */
     '<div class="card">' +
       '<div class="ver-picked mb"><span class="kicker">当前选择</span>' +
         '<span class="badge ok mono" id="v-picked">' + U.esc(st.version || '尚未选择') + '</span>' +
-        (st.build ? '<span class="badge mono">构建 #' + U.esc(st.build) + '</span>' : '') +
+        (st.build ? '<span class="badge mono">构建 #' + U.esc(st.build) + '（自动取最新）</span>' : '') +
       '</div>' +
-      '<div id="builds-host">' + buildsBlock() + '</div>' +
+      /* 构建列表已去掉：Paper/Forge 这类源动辄几百个构建，把列表摊开会让整页超高，
+         上一步/下一步被顶到屏幕外点不到（实测）。默认**自动取该版本的最新构建**，
+         想换构建的人用下面这个下拉即可（只渲染最近若干条）。 */
+      '<div id="v-build-host">' + buildsBlock() + '</div>' +
       '<div class="row"><div class="field" style="flex:0 0 260px;margin:0">' +
         '<label>手填版本号（可选）</label><input type="text" id="v-manual" class="mono" placeholder="例如 1.21.4" value="" /></div>' +
         '<button class="btn sm" id="v-manual-apply">用这个版本</button>' +
@@ -136,23 +138,26 @@ Pages.create = function (app) {
       '</div>';
   }
 
-  /* 构建列表（Paper / Forge / NeoForge 才有）：**渲染成可选项**，
-     并且只保留最近的若干个 —— 有的源有几百个构建。 */
+  /* 构建选择：**紧凑下拉**，不再是摊开的列表。
+     为什么改：Paper / Forge / NeoForge 的构建动辄几百个，把列表摊开（190px 滚动区）
+     会让整页超高 → 底部的「上一步 / 下一步」被顶到屏幕外，用户点不到（实测）。
+     默认自动选该版本的**最新构建**，想换的人从下拉里选最近的若干条。 */
   function buildsBlock() {
     if (!st.builds.length) return '';
     var list = st.builds.slice(0, 40);
-    return '<div class="mt mb"><div class="kicker mb">选择构建 <span class="faint">(' +
-        st.builds.length + ' 个，显示最近 ' + list.length + ')</span></div>' +
-      '<div class="build-list">' + list.map(function (b) {
-        var id = String(b.id);
-        return '<div class="version-item' + (id === String(st.build) ? ' sel' : '') +
-          '" data-build="' + U.esc(id) + '">' +
-          '<span>#' + U.esc(id) + '</span>' +
-          (b.channel ? '<span class="badge' + (b.channel === 'STABLE' || b.channel === 'default' ? ' ok' : '') +
-            '">' + U.esc(b.channel) + '</span>' : '') +
-          '<div class="spacer"></div>' +
-          '<span class="small faint">' + U.esc(String(b.time || '').slice(0, 19)) + '</span></div>';
-      }).join('') + '</div></div>';
+    return '<div class="row mb" style="align-items:flex-end;gap:var(--sp-3)">' +
+      '<div class="field" style="flex:0 1 240px;margin:0">' +
+        '<label>构建（默认最新，共 ' + st.builds.length + ' 个）</label>' +
+        '<select id="v-build" class="mono">' +
+        list.map(function (b) {
+          var id = String(b.id);
+          return '<option value="' + U.esc(id) + '"' + (id === String(st.build) ? ' selected' : '') + '>' +
+            '#' + U.esc(id) + (b.channel ? ' · ' + U.esc(b.channel) : '') +
+            (b.time ? ' · ' + U.esc(String(b.time).slice(0, 10)) : '') + '</option>';
+        }).join('') +
+        '</select></div>' +
+      '<div class="small faint" style="padding-bottom:8px">列表只显示最近 ' + list.length + ' 个构建</div>' +
+      '</div>';
   }
 
   function vitem(v) {
@@ -274,15 +279,7 @@ Pages.create = function (app) {
         loadBuilds();
       });
     });
-    body.querySelectorAll('[data-build]').forEach(function (el) {
-      el.addEventListener('click', function () {
-        st.build = el.getAttribute('data-build');
-        body.querySelectorAll('[data-build]').forEach(function (x) { x.classList.remove('sel'); });
-        el.classList.add('sel');
-        var pk = document.getElementById('v-picked');
-        if (pk) pk.textContent = st.version + '  构建 #' + st.build;
-      });
-    });
+    bindBuildSelect();
     var manualApply = document.getElementById('v-manual-apply');
     if (manualApply) manualApply.addEventListener('click', function () {
       var man = document.getElementById('v-manual');
@@ -399,24 +396,29 @@ Pages.create = function (app) {
       if (d.ok && (d.builds || []).length) {
         st.builds = d.builds;
         if (!st.build) st.build = String(st.builds[0].id);
-        /* 只替换构建区，不整页重渲染 —— 否则版本列表的滚动位置会被重置 */
-        var host = document.getElementById('builds-host');
+        /* 只替换构建那一块，不整页重渲染 —— 否则版本列表的滚动位置会被重置。
+           构建现在是**下拉**（不再是摊开的列表），所以替换 .ver-picked 之后的构建行即可。 */
+        var host = document.getElementById('v-build-host');
         if (host) {
           host.innerHTML = buildsBlock();
-          host.querySelectorAll('[data-build]').forEach(function (el) {
-            el.addEventListener('click', function () {
-              st.build = el.getAttribute('data-build');
-              host.querySelectorAll('[data-build]').forEach(function (x) { x.classList.remove('sel'); });
-              el.classList.add('sel');
-              var pk = document.getElementById('v-picked');
-              if (pk) pk.textContent = st.version + '  构建 #' + st.build;
-            });
-          });
+          bindBuildSelect();
         } else {
           render();
         }
       }
     }).catch(function () {});
+  }
+
+  /* 绑定构建下拉的 change（抽出来，供首次渲染与局部替换复用） */
+  function bindBuildSelect() {
+    var bsel = document.getElementById('v-build');
+    if (!bsel || bsel.dataset.bound === '1') return;
+    bsel.dataset.bound = '1';
+    bsel.addEventListener('change', function () {
+      st.build = bsel.value;
+      var pk = document.getElementById('v-picked');
+      if (pk) pk.textContent = st.version + '  构建 #' + st.build;
+    });
   }
 
   function doCreate(btn) {
