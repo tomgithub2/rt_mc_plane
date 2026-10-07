@@ -271,6 +271,18 @@ else
 fi
 ok "运行用户：$(id -un "$RUN_USER" 2>/dev/null || echo "$RUN_USER")"
 
+# ⚠️ 加固机器上**不要用 www 这类被安全模块盯上的用户**：
+#    实测（宝塔 tamper_core / BT security）`www` 执行外部程序会被**间歇性拦截**，
+#    表现极隐蔽 —— 子进程创建抛畸形异常 `SubprocessError('')`（消息与 errno 全空），
+#    连 `www` 跑 /usr/bin/timeout 都报假的 "Success"。后果是**面板能起、服开不了**：
+#      以 www 跑面板 → 启动实例必失败；换成 root 启动同一个面板 → 实例立刻起来。
+#    这类机器上请显式 `--user root`（面板要管理 MC 进程与端口，本就需要较高权限）。
+if [ "$RUN_USER" != "root" ]; then
+  warn "若本机有宝塔安全模块（或类似 execve 拦截），以 $RUN_USER 运行会**开不了服**"
+  warn "  ↳ 症状：面板正常，启动实例却报「启动失败：SubprocessError: 」（错误信息是空的）"
+  warn "  ↳ 处理：改用 --user root 重装，或把已装好的服务改成以 root 启动"
+fi
+
 # ---------------------------------------------------------------- 复制程序
 step "复制程序到 $INSTALL_DIR"
 mkdir -p "$INSTALL_DIR"
