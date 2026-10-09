@@ -518,18 +518,18 @@ node ..\tools\ui-shots\repro-login.js http://127.0.0.1:8100 <口令>
 
 | 次序 | 展示名 | logo | 仓库名 |
 |---|---|---|---|
-| 1 | MC 开服面板 | MC | yunshu-mc-panel（后改） |
+| 1 | MC 开服面板 | MC | ruituo-mc-panel（后改） |
 | 2 | rt_mc 面板 | rt_mc | rt_mc_plane（GitHub 原用名） |
-| 3 | 云枢面板 | 云枢 | yunshu-mc-panel |
-| 4 | 锐同面板 | 锐同 | yunshu-mc-panel |
-| 5 | **芮拓面板（当前）** | **芮拓** | yunshu-mc-panel（用户定：仓库先不动） |
+| 3 | 云枢面板 | 云枢 | ruituo-mc-panel |
+| 4 | 锐同面板 | 锐同 | ruituo-mc-panel |
+| 5 | **芮拓面板（当前）** | **芮拓** | ruituo-mc-panel（用户定：仓库先不动） |
 
 > ⚠️ 注意：**改名脚本会把这张历史表里的旧名一起替换掉**（它按文本整体替换）。
 > 所以每次改名之后，这张表要**手工补一行**，否则历史会被"吃掉"。
 
 致未来的自己：**品牌名已改动 5 次**。若用户再要改名，先把「仓库名要不要一起改」
 「已发出的宣传物料要不要重做」问清，不要在展示名上单方面来回改——每改一次，
-仓库名（`yunshu-mc-panel`）与展示名就更脱节一层，而仓库改名又会带来
+仓库名（`ruituo-mc-panel`）与展示名就更脱节一层，而仓库改名又会带来
 PAT 授权失效 / 旧链接失效 / 开源平台重指向等一串副作用。
 
 ⚠️ 改名时要动的面：`frontend/dist/index.html`（title/boot-logo）、`js/components.js`（侧栏）、
