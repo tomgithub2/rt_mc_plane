@@ -14,10 +14,10 @@ from pydantic import BaseModel
 
 from .. import audit as audit_mod
 from ..auth import get_current_user, try_get_user
-from ..config import INSTANCE_DIR, get_config, instance_dir
+from ..config import BASE_DIR, DATA_DIR, INSTANCE_DIR, get_config, instance_dir
 from ..database import execute, now, query
 from ..downloader import active_for, get as dl_get, start_download
-from ..pathguard import assert_inside
+from ..pathguard import assert_inside, assert_safe_instance_dir
 from .. import permissions as perms
 from ..permissions import require_instance, require_perm
 from ..process_manager import (ST_CRASHED, ST_RUNNING, ST_STARTING, ST_STOPPED, ST_STOPPING,
@@ -51,6 +51,9 @@ class CreateIn(BaseModel):
     note: str = ''
     #: 归属用户。留空 = 自己；只有超级管理员可以填别人的 id（规格 §3）。
     owner_id: int = 0
+    #: 自定义存放目录（绝对路径）。留空 = 用默认 <数据目录>/instances/<id>_<名称>。
+    #: 非空时会过 `assert_safe_instance_dir` 的安全校验（挡系统目录 / 面板自身目录）。
+    dir: str = ''
 
 
 class UpdateIn(BaseModel):
@@ -223,9 +226,24 @@ def create_instance(body: CreateIn, request: Request, user: dict = Depends(get_c
          int(body.memory_mb), port, '', ST_STOPPED, now(), 1 if body.auto_restart else 0,
          body.extra_jvm_args, 1 if body.nogui else 0, 1 if body.rcon_enabled else 0,
          int(body.rcon_port), body.rcon_password, body.note))
-    d = os.path.join(INSTANCE_DIR, _safe_dir_name(iid, name))
-    os.makedirs(d, exist_ok=True)
-    os.makedirs(os.path.join(d, 'logs'), exist_ok=True)
+    # 存放目录：用户指定则用他的（先过安全检查），否则用默认位置。
+    # ⚠️ 必须在**建目录之前**校验并 realpath —— 否则符号链接/`..` 可能把实例指到别处。
+    custom = str(getattr(body, 'dir', '') or '').strip()
+    if custom:
+        # 保留区：面板的数据目录与后端程序目录 —— 实例绝不能建在里面
+        # （删除实例时会连带删目录，建在数据目录里可能把库/别的实例一起带走）
+        d = assert_safe_instance_dir(custom, data_dir=DATA_DIR,
+                                    extra_reserved=(BASE_DIR, os.path.dirname(BASE_DIR)))
+    else:
+        d = os.path.join(INSTANCE_DIR, _safe_dir_name(iid, name))
+    try:
+        os.makedirs(d, exist_ok=True)
+        os.makedirs(os.path.join(d, 'logs'), exist_ok=True)
+    except OSError as e:
+        # 建目录失败要把实例记录回滚掉，否则库里留一条指向不存在目录的僵尸实例
+        execute('DELETE FROM instances WHERE id=?', (iid,))
+        raise HTTPException(status_code=400,
+                            detail=f'创建存放目录失败：{d}（{e.strerror or e}）')
     execute('UPDATE instances SET dir=? WHERE id=?', (os.path.realpath(d), iid))
     row = _row_or_404(iid)
     if body.accept_eula:

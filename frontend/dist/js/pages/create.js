@@ -13,6 +13,7 @@ Pages.create = function (app) {
     memory: 2048,
     port: 25565,
     name: '',
+    dir: '',
     javaPath: '',
     javas: [],
     autoRestart: true,
@@ -186,7 +187,18 @@ Pages.create = function (app) {
           '<label class="check mt"><input type="checkbox" id="f-dl"' + (st.download ? ' checked' : '') + ' />创建后自动下载服务端核心</label>' +
           '<label class="check mt"><input type="checkbox" id="f-rcon"' + (st.rcon ? ' checked' : '') + ' />写入 RCON 配置（用于取玩家列表）</label>' +
         '</div>' +
-      '</div>' + nav(true, '下一步：Java 运行时', 'w-next') + '</div>';
+      '</div>' +
+      /* 存放目录：留空用默认位置（数据目录/instances/…），填了就按你给的绝对路径建。
+         后端会挡系统目录与面板自身目录，所以这里只做"填了就必须是绝对路径"的简单引导。 */
+      '<div class="field mt"><label for="f-dir">服务器存放目录（可留空）</label>' +
+        '<input type="text" id="f-dir" class="mono" value="' + U.esc(st.dir) + '" ' +
+          'placeholder="留空 = 默认位置（数据目录/instances/…）" />' +
+        '<div class="desc">填绝对路径可把这个世界放到别的盘/目录，例如 ' +
+          '<span class="mono">/opt/mc-servers/生存服</span> 或 <span class="mono">/data/mc/survival</span>。' +
+          '必须是<b>绝对路径</b>且指向一个<b>空目录或尚不存在的位置</b>；' +
+          '系统目录（/etc、/usr、/root、/home 等）与面板自身目录会被拒绝。</div>' +
+      '</div>' +
+      nav(true, '下一步：Java 运行时', 'w-next') + '</div>';
   }
 
   function stepJava() {
@@ -230,6 +242,7 @@ Pages.create = function (app) {
         '<div class="k">实例名</div><div class="v">' + U.esc(st.name) + '</div>' +
         '<div class="k">端口</div><div class="v">' + st.port + '</div>' +
         '<div class="k">最大内存</div><div class="v">' + st.memory + ' MB</div>' +
+        '<div class="k">存放目录</div><div class="v mono">' + (st.dir ? U.esc(st.dir) : '默认位置（数据目录/instances/…）') + '</div>' +
         '<div class="k">Java</div><div class="v">' + U.esc(st.javaPath || '自动检测（PATH 中的 java）') + '</div>' +
         '<div class="k">自动重启</div><div class="v">' + (st.autoRestart ? '开' : '关') + '</div>' +
         '<div class="k">接受 EULA</div><div class="v">' + (st.eula ? '是' : '否') + '</div>' +
@@ -354,6 +367,14 @@ Pages.create = function (app) {
       st.name = (document.getElementById('f-name').value || '').trim();
       st.port = parseInt(document.getElementById('f-port').value, 10);
       st.memory = parseInt(document.getElementById('f-mem').value, 10);
+      var dEl = document.getElementById('f-dir');
+      st.dir = dEl ? (dEl.value || '').trim() : '';
+      // 前端先挡一道：填了就必须是绝对路径，省得提交后才报错
+      if (st.dir && !/^([A-Za-z]:[\\/]|\/)/.test(st.dir)) {
+        Toast.warn('存放目录要填绝对路径，例如 /opt/mc-servers/生存服（留空则用默认位置）');
+        if (dEl) dEl.focus();
+        return false;
+      }
       st.autoRestart = document.getElementById('f-auto').checked;
       st.eula = document.getElementById('f-eula').checked;
       st.download = document.getElementById('f-dl').checked;
@@ -427,7 +448,9 @@ Pages.create = function (app) {
       name: st.name, core_type: st.source, mc_version: st.version, core_version: st.build,
       memory_mb: st.memory, port: st.port, java_path: st.javaPath, auto_restart: st.autoRestart,
       accept_eula: st.eula, download: st.download,
-      rcon_enabled: st.rcon, rcon_port: st.rconPort
+      rcon_enabled: st.rcon, rcon_port: st.rconPort,
+      /* 存放目录：留空 = 后端用默认位置；填了就按绝对路径建（后端会挡系统目录） */
+      dir: st.dir || ''
     }).then(function (r) {
       st.created = r;
       var dl = r.download || null;
